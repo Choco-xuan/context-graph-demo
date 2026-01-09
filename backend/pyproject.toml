@@ -2,7 +2,6 @@
 name = "context-graph"
 version = "0.1.0"
 description = "Context Graph Demo - Decision traces for AI agents using Neo4j"
-readme = "../README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115.0",
