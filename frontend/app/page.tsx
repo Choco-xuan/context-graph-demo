@@ -106,13 +106,35 @@ export default function Home() {
                 AI-powered decision tracing for financial institutions
               </Text>
             </Box>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSchemaDrawerOpen(true)}
-            >
-              About & Schema
-            </Button>
+            <Flex gap={2} align="center">
+              <Button
+                as="a"
+                href="https://github.com/johnymontana/context-graph-demo/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="ghost"
+                size="sm"
+              >
+                Issues
+              </Button>
+              <Button
+                as="a"
+                href="https://github.com/johnymontana/context-graph-demo"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="ghost"
+                size="sm"
+              >
+                GitHub
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSchemaDrawerOpen(true)}
+              >
+                About & Schema
+              </Button>
+            </Flex>
           </Flex>
         </Container>
       </Box>
