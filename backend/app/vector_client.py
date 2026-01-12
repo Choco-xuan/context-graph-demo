@@ -138,11 +138,10 @@ class VectorClient:
         limit: int = 5,
     ) -> list[dict]:
         """
-        Find precedent decisions using both semantic and structural similarity.
+        Find precedent decisions using semantic similarity.
 
-        This is the key hybrid query that combines:
-        - Semantic similarity (reasoning_embedding from OpenAI)
-        - Structural similarity (fastrp_embedding from Neo4j GDS)
+        Uses text embeddings (reasoning_embedding) to find decisions with
+        similar reasoning to the given scenario.
         """
         query_embedding = self.generate_embedding(scenario)
 
@@ -151,50 +150,26 @@ class VectorClient:
         with self.driver.session(database=self.database) as session:
             result = session.run(
                 f"""
-                // First, find semantically similar decisions
                 CALL db.index.vector.queryNodes(
                     'decision_reasoning_idx',
-                    $limit * 2,
-                    $query_embedding
-                ) YIELD node AS semantic_match, score AS semantic_score
-                WHERE semantic_match:Decision {category_filter.replace("d.", "semantic_match.")}
-
-                // For each semantic match, find structurally similar decisions
-                WITH semantic_match, semantic_score
-                CALL db.index.vector.queryNodes(
-                    'decision_fastrp_idx',
                     $limit,
-                    semantic_match.fastrp_embedding
-                ) YIELD node AS structural_match, score AS structural_score
-                WHERE structural_match:Decision AND structural_match <> semantic_match
-
-                // Combine scores with weights
-                WITH semantic_match, structural_match,
-                     semantic_score, structural_score,
-                     (semantic_score * $semantic_weight + structural_score * $structural_weight) AS combined_score
-
-                // Return unique results
-                WITH DISTINCT structural_match AS decision,
-                     max(combined_score) AS score,
-                     max(semantic_score) AS best_semantic,
-                     max(structural_score) AS best_structural
-
-                RETURN decision.id AS id,
-                       decision.decision_type AS decision_type,
-                       decision.category AS category,
-                       decision.reasoning_summary AS reasoning_summary,
-                       decision.decision_timestamp AS decision_timestamp,
-                       score AS combined_score,
-                       best_semantic AS semantic_similarity,
-                       best_structural AS structural_similarity
-                ORDER BY score DESC
+                    $query_embedding
+                ) YIELD node AS d, score AS semantic_score
+                WHERE d:Decision {category_filter}
+                RETURN d.id AS id,
+                       d.decision_type AS decision_type,
+                       d.category AS category,
+                       d.reasoning_summary AS reasoning_summary,
+                       d.decision_timestamp AS decision_timestamp,
+                       semantic_score AS combined_score,
+                       semantic_score AS semantic_similarity,
+                       null AS structural_similarity
+                ORDER BY semantic_score DESC
                 LIMIT $limit
                 """,
                 {
                     "query_embedding": query_embedding,
                     "category": category,
-                    "semantic_weight": semantic_weight,
-                    "structural_weight": structural_weight,
                     "limit": limit,
                 },
             )

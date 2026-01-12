@@ -54,6 +54,25 @@ async def lifespan(app: FastAPI):
             logger.info(f"Existing indexes: {len(index_results['existing'])} already present")
         if index_results["errors"]:
             logger.warning(f"Index errors: {index_results['errors']}")
+
+        # Generate reasoning embeddings for decisions that don't have them
+        logger.info("Checking decision embeddings...")
+        total_generated = 0
+        while True:
+            try:
+                count = vector_client.batch_update_decision_embeddings(limit=100)
+                if count == 0:
+                    break
+                total_generated += count
+                logger.info(f"Generated embeddings for {count} decisions ({total_generated} total)")
+            except Exception as e:
+                logger.warning(f"Could not generate embeddings: {e}")
+                break
+
+        if total_generated > 0:
+            logger.info(f"Finished generating {total_generated} decision embeddings")
+        else:
+            logger.info("All decisions already have embeddings")
     else:
         logger.warning("Could not connect to Neo4j")
     yield

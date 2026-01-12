@@ -13,33 +13,62 @@ from .gds_client import gds_client
 from .vector_client import vector_client
 
 
-def get_graph_data_for_entity(entity_id: str, depth: int = 2) -> dict:
+def slim_properties(props: dict) -> dict:
+    """Remove large properties to reduce response size."""
+    slim = {}
+    for key, value in props.items():
+        # Skip embedding vectors
+        if key in ("fastrp_embedding", "reasoning_embedding", "embedding"):
+            continue
+        # Truncate long strings
+        if isinstance(value, str) and len(value) > 200:
+            slim[key] = value[:200] + "..."
+        # Limit list sizes
+        elif isinstance(value, list) and len(value) > 10:
+            slim[key] = value[:10]
+        else:
+            slim[key] = value
+    return slim
+
+
+def get_graph_data_for_entity(entity_id: str, depth: int = 2, limit: int = 30) -> dict:
     """Get graph visualization data centered on an entity."""
     try:
         graph_data = context_graph_client.get_graph_data(
-            center_node_id=entity_id, depth=depth, limit=50
+            center_node_id=entity_id, depth=depth, limit=limit
         )
+        # Build nodes list first
+        nodes = [
+            {
+                "id": node.id,
+                "labels": node.labels,
+                "properties": slim_properties(node.properties),
+            }
+            for node in graph_data.nodes
+        ]
+
+        # Create set of node IDs for filtering relationships
+        node_ids = {node["id"] for node in nodes}
+
+        # Only include relationships where both nodes exist
+        relationships = [
+            {
+                "id": rel.id,
+                "type": rel.type,
+                "startNodeId": rel.start_node_id,
+                "endNodeId": rel.end_node_id,
+                "properties": slim_properties(rel.properties),
+            }
+            for rel in graph_data.relationships
+            if rel.start_node_id in node_ids and rel.end_node_id in node_ids
+        ]
+
         return {
-            "nodes": [
-                {
-                    "id": node.id,
-                    "labels": node.labels,
-                    "properties": node.properties,
-                }
-                for node in graph_data.nodes
-            ],
-            "relationships": [
-                {
-                    "id": rel.id,
-                    "type": rel.type,
-                    "startNodeId": rel.startNodeId,
-                    "endNodeId": rel.endNodeId,
-                    "properties": rel.properties,
-                }
-                for rel in graph_data.relationships
-            ],
+            "nodes": nodes,
+            "relationships": relationships,
         }
-    except Exception:
+    except Exception as e:
+        print(f"Error getting graph data for entity {entity_id}: {e}")
         return {"nodes": [], "relationships": []}
 
 
@@ -88,6 +117,29 @@ This combination provides insights that are impossible with traditional database
 # ============================================
 
 
+def merge_graph_data(graphs: list[dict], max_nodes: int = 50, max_rels: int = 75) -> dict:
+    """Merge multiple graph data objects, removing duplicates and limiting size."""
+    all_nodes = {}
+    all_relationships = {}
+
+    for graph in graphs:
+        if not graph:
+            continue
+        for node in graph.get("nodes", []):
+            if len(all_nodes) < max_nodes:
+                all_nodes[node["id"]] = node
+        for rel in graph.get("relationships", []):
+            # Only include relationships where both nodes are in the graph
+            if rel.get("startNodeId") in all_nodes and rel.get("endNodeId") in all_nodes:
+                if len(all_relationships) < max_rels:
+                    all_relationships[rel["id"]] = rel
+
+    return {
+        "nodes": list(all_nodes.values()),
+        "relationships": list(all_relationships.values()),
+    }
+
+
 @tool(
     "search_customer",
     "Search for customers by name, email, or account number. Returns customer profiles with risk scores and related account counts.",
@@ -99,10 +151,16 @@ async def search_customer(args: dict[str, Any]) -> dict[str, Any]:
         results = context_graph_client.search_customers(
             query=args["query"], limit=args.get("limit", 10)
         )
-        # Include graph data for the first result
-        graph_data = None
-        if results and len(results) > 0:
-            graph_data = get_graph_data_for_entity(results[0].get("id"), depth=2)
+        # Include graph data for top customers (1 hop from each)
+        graphs = []
+        for customer in results[:3]:  # Limit to first 3 customers
+            customer_id = customer.get("id")
+            if customer_id:
+                customer_graph = get_graph_data_for_entity(customer_id, depth=1)
+                graphs.append(customer_graph)
+
+        # Merge all graph data with size limits
+        graph_data = merge_graph_data(graphs) if graphs else {"nodes": [], "relationships": []}
 
         response = {
             "customers": results,
@@ -308,21 +366,57 @@ async def detect_fraud_patterns(args: dict[str, Any]) -> dict[str, Any]:
 
 @tool(
     "get_policy",
-    "Get the current policy rules for a specific category. Returns policy details including thresholds and requirements.",
+    "Get the current policy rules for a specific category. Returns policy details including thresholds and requirements. If policy_name is provided, returns policies matching any words in the name.",
     {"category": str, "policy_name": str},
 )
 async def get_policy(args: dict[str, Any]) -> dict[str, Any]:
     """Get policy information."""
     try:
+        # Get all policies for the category
+        policies = context_graph_client.get_policies(category=args.get("category"))
+
         if args.get("policy_name"):
-            # Search by name
-            policies = context_graph_client.get_policies(category=args.get("category"))
-            matching = [
-                p for p in policies if args["policy_name"].lower() in p.get("name", "").lower()
+            # Extract meaningful words from the search query (skip common words)
+            stop_words = {"the", "a", "an", "for", "and", "or", "of", "in", "to", "with"}
+            search_words = [
+                word.lower()
+                for word in args["policy_name"].split()
+                if word.lower() not in stop_words and len(word) > 2
             ]
-            results = matching[0] if matching else None
+
+            # Score each policy by how many search words match
+            scored_policies = []
+            for policy in policies:
+                policy_name_lower = policy.get("name", "").lower()
+                # Count how many search words appear in the policy name
+                matches = sum(1 for word in search_words if word in policy_name_lower)
+                if matches > 0:
+                    scored_policies.append({"policy": policy, "relevance_score": matches})
+
+            # Sort by relevance score (highest first)
+            scored_policies.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+            if scored_policies:
+                # Return all matching policies with relevance info
+                results = {
+                    "matching_policies": [
+                        {**sp["policy"], "relevance_score": sp["relevance_score"]}
+                        for sp in scored_policies
+                    ],
+                    "search_terms": search_words,
+                    "total_matches": len(scored_policies),
+                }
+            else:
+                # No matches found - return all policies in category as fallback
+                results = {
+                    "matching_policies": [],
+                    "search_terms": search_words,
+                    "total_matches": 0,
+                    "all_policies_in_category": policies,
+                    "note": f"No policies matched '{args['policy_name']}'. Showing all policies in category.",
+                }
         else:
-            results = context_graph_client.get_policies(category=args.get("category"))
+            results = policies
 
         return {"content": [{"type": "text", "text": json.dumps(results, indent=2, default=str)}]}
     except Exception as e:
