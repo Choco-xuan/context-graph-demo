@@ -353,7 +353,7 @@ export function ChatInterface({
   return (
     <Flex direction="column" h="100%">
       {/* Messages Area */}
-      <Box flex={1} overflow="auto" p={4}>
+      <Box flex={1} overflow="auto" p={4} pb={{ base: "100px", md: 4 }}>
         <VStack gap={4} align="stretch">
           {/* Welcome message */}
           {messages.length === 0 && (
@@ -444,7 +444,17 @@ export function ChatInterface({
       </Box>
 
       {/* Input Area */}
-      <Box p={4} borderTopWidth="1px" borderColor="border.default">
+      <Box
+        p={{ base: 3, md: 4 }}
+        borderTopWidth="1px"
+        borderColor="border.default"
+        position={{ base: "fixed", md: "relative" }}
+        bottom={{ base: 0, md: "auto" }}
+        left={{ base: 0, md: "auto" }}
+        right={{ base: 0, md: "auto" }}
+        bg="bg.surface"
+        zIndex={10}
+      >
         <Flex gap={2}>
           <Textarea
             ref={textareaRef}

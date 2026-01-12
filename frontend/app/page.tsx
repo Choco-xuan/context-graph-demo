@@ -10,7 +10,10 @@ import {
   Grid,
   GridItem,
   Button,
+  Menu,
+  Portal,
 } from "@chakra-ui/react";
+import { LuMenu } from "react-icons/lu";
 import dynamic from "next/dynamic";
 import { ChatInterface } from "@/components/ChatInterface";
 import { DecisionTracePanel } from "@/components/DecisionTracePanel";
@@ -93,20 +96,26 @@ export default function Home() {
         bg="bg.surface"
         borderBottomWidth="1px"
         borderColor="border.default"
-        py={4}
-        px={6}
+        py={{ base: 2, md: 4 }}
+        px={{ base: 3, md: 6 }}
       >
         <Container maxW="container.2xl">
           <Flex justify="space-between" align="center">
             <Box>
-              <Heading size="lg" color="brand.600">
+              <Heading size={{ base: "md", md: "lg" }} color="brand.600">
                 Context Graph Demo
               </Heading>
-              <Text color="gray.500" fontSize="sm">
+              <Text
+                color="gray.500"
+                fontSize="sm"
+                display={{ base: "none", md: "block" }}
+              >
                 AI-powered decision tracing for financial institutions
               </Text>
             </Box>
-            <Flex gap={2} align="center">
+
+            {/* Desktop Navigation */}
+            <Flex gap={2} align="center" display={{ base: "none", md: "flex" }}>
               <Button asChild variant="ghost" size="sm">
                 <a
                   href="https://github.com/johnymontana/context-graph-demo/issues"
@@ -133,16 +142,57 @@ export default function Home() {
                 About & Schema
               </Button>
             </Flex>
+
+            {/* Mobile Hamburger Menu */}
+            <Box display={{ base: "block", md: "none" }}>
+              <Menu.Root>
+                <Menu.Trigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <LuMenu />
+                  </Button>
+                </Menu.Trigger>
+                <Portal>
+                  <Menu.Positioner>
+                    <Menu.Content>
+                      <Menu.Item value="issues" asChild>
+                        <a
+                          href="https://github.com/johnymontana/context-graph-demo/issues"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Issues
+                        </a>
+                      </Menu.Item>
+                      <Menu.Item value="github" asChild>
+                        <a
+                          href="https://github.com/johnymontana/context-graph-demo"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          GitHub
+                        </a>
+                      </Menu.Item>
+                      <Menu.Item
+                        value="schema"
+                        onClick={() => setSchemaDrawerOpen(true)}
+                      >
+                        About & Schema
+                      </Menu.Item>
+                    </Menu.Content>
+                  </Menu.Positioner>
+                </Portal>
+              </Menu.Root>
+            </Box>
           </Flex>
         </Container>
       </Box>
 
       {/* Main Content */}
-      <Container maxW="container.2xl" py={6}>
+      <Container maxW="container.2xl" py={{ base: 3, md: 6 }}>
         <Grid
           templateColumns={{ base: "1fr", lg: "1fr 1fr", xl: "1fr 1.5fr 1fr" }}
-          gap={6}
-          h="calc(100vh - 140px)"
+          gap={{ base: 3, md: 6 }}
+          h={{ base: "calc(100vh - 60px)", md: "calc(100vh - 140px)" }}
         >
           {/* Chat Panel */}
           <GridItem overflow="hidden">
@@ -178,8 +228,8 @@ export default function Home() {
             </Box>
           </GridItem>
 
-          {/* Graph Visualization */}
-          <GridItem overflow="hidden">
+          {/* Graph Visualization - Hidden on mobile */}
+          <GridItem display={{ base: "none", lg: "block" }} overflow="hidden">
             <Box
               bg="bg.surface"
               borderRadius="lg"
