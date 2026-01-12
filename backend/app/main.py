@@ -73,6 +73,21 @@ async def lifespan(app: FastAPI):
             logger.info(f"Finished generating {total_generated} decision embeddings")
         else:
             logger.info("All decisions already have embeddings")
+
+        # Run Louvain community detection to compute community IDs for decisions
+        logger.info("Running Louvain community detection...")
+        try:
+            community_result = gds_client.write_community_ids()
+            if community_result.get("status") == "already_computed":
+                logger.info("Community IDs already computed")
+            elif community_result:
+                logger.info(
+                    f"Community detection complete: {community_result.get('communityCount', 0)} communities found"
+                )
+            else:
+                logger.info("Community detection complete")
+        except Exception as e:
+            logger.warning(f"Could not run community detection: {e}")
     else:
         logger.warning("Could not connect to Neo4j")
     yield

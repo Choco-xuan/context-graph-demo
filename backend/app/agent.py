@@ -365,6 +365,53 @@ async def detect_fraud_patterns(args: dict[str, Any]) -> dict[str, Any]:
 
 
 @tool(
+    "find_decision_community",
+    "Find decisions in the same community using Louvain community detection. Returns decisions that are structurally related through causal chains and precedent relationships.",
+    {"decision_id": str, "limit": int},
+)
+async def find_decision_community(args: dict[str, Any]) -> dict[str, Any]:
+    """Find decisions in the same community using Louvain."""
+    try:
+        decision_id = args["decision_id"]
+        limit = args.get("limit", 10)
+
+        # Community IDs are computed at app startup via Louvain
+        # Query decisions in the same community
+        with gds_client.driver.session(database=gds_client.database) as session:
+            result = session.run(
+                """
+                MATCH (source:Decision {id: $decision_id})
+                MATCH (other:Decision)
+                WHERE other.community_id = source.community_id AND other.id <> source.id
+                RETURN other.id AS id,
+                       other.decision_type AS decision_type,
+                       other.category AS category,
+                       other.reasoning_summary AS reasoning_summary,
+                       other.decision_timestamp AS decision_timestamp,
+                       other.community_id AS community_id
+                ORDER BY other.decision_timestamp DESC
+                LIMIT $limit
+                """,
+                {"decision_id": decision_id, "limit": limit},
+            )
+            community_decisions = [dict(record) for record in result]
+
+        # Include graph data centered on the decision
+        graph_data = get_graph_data_for_entity(decision_id, depth=2)
+
+        response = {
+            "community_decisions": community_decisions,
+            "graph_data": graph_data,
+        }
+        return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
+    except Exception as e:
+        return {
+            "content": [{"type": "text", "text": f"Error finding community: {str(e)}"}],
+            "is_error": True,
+        }
+
+
+@tool(
     "get_policy",
     "Get the current policy rules for a specific category. Returns policy details including thresholds and requirements. If policy_name is provided, returns policies matching any words in the name.",
     {"category": str, "policy_name": str},
@@ -483,6 +530,7 @@ def create_context_graph_server():
             get_causal_chain,
             record_decision,
             detect_fraud_patterns,
+            find_decision_community,
             get_policy,
             execute_cypher,
             get_schema,
@@ -505,6 +553,7 @@ def get_agent_options() -> ClaudeAgentOptions:
             "mcp__graph__get_causal_chain",
             "mcp__graph__record_decision",
             "mcp__graph__detect_fraud_patterns",
+            "mcp__graph__find_decision_community",
             "mcp__graph__get_policy",
             "mcp__graph__execute_cypher",
             "mcp__graph__get_schema",
@@ -524,6 +573,7 @@ AVAILABLE_TOOLS = [
     "get_causal_chain",
     "record_decision",
     "detect_fraud_patterns",
+    "find_decision_community",
     "get_policy",
     "execute_cypher",
     "get_schema",

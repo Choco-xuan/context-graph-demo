@@ -47,6 +47,9 @@ const NODE_COLORS: Record<string, string> = {
   DecisionContext: "#B794F4",
   Precedent: "#F687B3",
   RelationshipType: "#A0AEC0",
+  Community: "#DD6B20",
+  SupportTicket: "#3182CE",
+  Alert: "#ECC94B",
 };
 
 // Node size by label
@@ -63,6 +66,9 @@ const NODE_SIZES: Record<string, number> = {
   DecisionContext: 18,
   Precedent: 18,
   RelationshipType: 20,
+  Community: 28,
+  SupportTicket: 20,
+  Alert: 22,
 };
 
 interface SelectedElement {

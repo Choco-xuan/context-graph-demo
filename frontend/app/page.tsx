@@ -107,25 +107,23 @@ export default function Home() {
               </Text>
             </Box>
             <Flex gap={2} align="center">
-              <Button
-                as="a"
-                href="https://github.com/johnymontana/context-graph-demo/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="ghost"
-                size="sm"
-              >
-                Issues
+              <Button asChild variant="ghost" size="sm">
+                <a
+                  href="https://github.com/johnymontana/context-graph-demo/issues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Issues
+                </a>
               </Button>
-              <Button
-                as="a"
-                href="https://github.com/johnymontana/context-graph-demo"
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="ghost"
-                size="sm"
-              >
-                GitHub
+              <Button asChild variant="ghost" size="sm">
+                <a
+                  href="https://github.com/johnymontana/context-graph-demo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  GitHub
+                </a>
               </Button>
               <Button
                 variant="outline"

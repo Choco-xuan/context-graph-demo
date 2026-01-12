@@ -434,13 +434,13 @@ class GDSClient:
                     WITH target, fraud, count(t) AS flagged_count
                     WHERE flagged_count >= 2
                     CALL gds.nodeSimilarity.stream($graph_name, {
-                        nodeLabels: ['Account'],
-                        topK: 5,
+                        topK: 50,
                         similarityCutoff: $threshold
                     }) YIELD node1, node2, similarity
                     WITH target, fraud, gds.util.asNode(node1) AS a1, gds.util.asNode(node2) AS a2, similarity
-                    WHERE (a1.id = target.id AND a2.id = fraud.id)
-                       OR (a1.id = fraud.id AND a2.id = target.id)
+                    WHERE a1:Account AND a2:Account
+                      AND ((a1.id = target.id AND a2.id = fraud.id)
+                        OR (a1.id = fraud.id AND a2.id = target.id))
                     RETURN DISTINCT target.id AS target_id,
                            target.account_number AS target_account,
                            fraud.id AS fraud_case_id,
@@ -464,12 +464,12 @@ class GDSClient:
                     WHERE flagged_count >= 2
                     WITH collect(fraud) AS fraud_accounts
                     CALL gds.nodeSimilarity.stream($graph_name, {
-                        nodeLabels: ['Account'],
-                        topK: 10,
+                        topK: 100,
                         similarityCutoff: $threshold
                     }) YIELD node1, node2, similarity
                     WITH fraud_accounts, gds.util.asNode(node1) AS a1, gds.util.asNode(node2) AS a2, similarity
-                    WHERE a1 IN fraud_accounts AND NOT a2 IN fraud_accounts
+                    WHERE a1:Account AND a2:Account
+                      AND a1 IN fraud_accounts AND NOT a2 IN fraud_accounts
                     RETURN a2.id AS suspect_id,
                            a2.account_number AS suspect_account,
                            a2.risk_tier AS current_risk_tier,
@@ -519,6 +519,7 @@ class GDSClient:
     def write_community_ids(
         self,
         graph_name: str = "decision-graph",
+        force: bool = False,
     ) -> dict:
         """Write community IDs to decision nodes."""
         # Ensure the graph projection exists
@@ -526,6 +527,21 @@ class GDSClient:
             self._ensure_decision_graph_exists()
 
         with self.driver.session(database=self.database) as session:
+            # Check if Community nodes already exist in the database
+            if not force:
+                community_check = session.run("MATCH (c:Community) RETURN count(c) > 0 AS exists")
+                community_record = community_check.single()
+                if community_record and community_record["exists"]:
+                    # Communities already created, return early
+                    return {"communityCount": 0, "status": "already_computed"}
+
+            # Drop and recreate the graph projection to ensure clean state for Louvain
+            session.run(
+                "CALL gds.graph.drop($graph_name, false)",
+                {"graph_name": graph_name},
+            )
+            self._ensure_decision_graph_exists()
+
             result = session.run(
                 """
                 CALL gds.louvain.mutate($graph_name, {
@@ -538,7 +554,55 @@ class GDSClient:
                 {"graph_name": graph_name},
             )
             record = result.single()
-            return dict(record) if record else {}
+            louvain_result = dict(record) if record else {}
+
+            # Write community IDs back to actual Decision nodes in Neo4j
+            session.run(
+                """
+                CALL gds.graph.nodeProperty.stream($graph_name, 'community_id')
+                YIELD nodeId, propertyValue
+                WITH gds.util.asNode(nodeId) AS decision, propertyValue AS communityId
+                WHERE decision:Decision
+                SET decision.community_id = toInteger(communityId)
+                """,
+                {"graph_name": graph_name},
+            )
+
+            # Create Community nodes and connect them to Decision nodes
+            session.run(
+                """
+                MATCH (d:Decision)
+                WHERE d.community_id IS NOT NULL
+                WITH DISTINCT d.community_id AS communityId
+                MERGE (c:Community {id: communityId})
+                SET c.name = 'Community ' + toString(communityId)
+                """
+            )
+
+            # Create BELONGS_TO relationships from Decisions to Communities
+            session.run(
+                """
+                MATCH (d:Decision)
+                WHERE d.community_id IS NOT NULL
+                MATCH (c:Community {id: d.community_id})
+                MERGE (d)-[:BELONGS_TO]->(c)
+                """
+            )
+
+            # Update Community nodes with aggregated info
+            session.run(
+                """
+                MATCH (c:Community)<-[:BELONGS_TO]-(d:Decision)
+                WITH c, count(d) AS decisionCount,
+                     collect(DISTINCT d.category) AS categories,
+                     collect(DISTINCT d.decision_type) AS decisionTypes
+                SET c.decision_count = decisionCount,
+                    c.categories = categories,
+                    c.decision_types = decisionTypes
+                """
+            )
+
+            return louvain_result
 
     # ============================================
     # PAGERANK - INFLUENCE SCORING
