@@ -59,14 +59,14 @@ CREATE VECTOR INDEX transaction_fastrp_idx IF NOT EXISTS
 FOR (t:Transaction) ON (t.fastrp_embedding)
 OPTIONS {indexConfig: {`vector.dimensions`: 128, `vector.similarity_function`: 'cosine'}};
 
-// OpenAI text embeddings (1536 dimensions) for semantic search
+// Semantic text embeddings (4096 dimensions, e.g. Qwen/Qwen3-Embedding-8B on 硅基流动)
 CREATE VECTOR INDEX decision_reasoning_idx IF NOT EXISTS
 FOR (d:Decision) ON (d.reasoning_embedding)
-OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}};
+OPTIONS {indexConfig: {`vector.dimensions`: 4096, `vector.similarity_function`: 'cosine'}};
 
 CREATE VECTOR INDEX policy_description_idx IF NOT EXISTS
 FOR (p:Policy) ON (p.description_embedding)
-OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}};
+OPTIONS {indexConfig: {`vector.dimensions`: 4096, `vector.similarity_function`: 'cosine'}};
 
 // ============================================
 // NODE TYPE DOCUMENTATION
@@ -161,7 +161,7 @@ OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 
 //   source_system: string
 //   session_id: string (agent session that made decision)
 //   fastrp_embedding: list<float> (128 dims, structural similarity)
-//   reasoning_embedding: list<float> (1536 dims, semantic similarity)
+//   reasoning_embedding: list<float> (4096 dims, semantic similarity, e.g. Qwen3-Embedding-8B)
 //   created_at: datetime
 
 // DecisionContext - Snapshot of state at decision time

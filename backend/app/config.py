@@ -18,6 +18,9 @@ class Neo4jConfig:
     username: str
     password: str
     database: str = "neo4j"
+    # 连接池：缩短连接生命周期，避免 Windows 下“已中止连接”(10053) 使用失效连接
+    max_connection_lifetime: int = 1800  # 30 分钟回收
+    connection_timeout: float = 30.0  # 秒
 
     @classmethod
     def from_env(cls) -> "Neo4jConfig":
@@ -26,23 +29,31 @@ class Neo4jConfig:
             username=os.getenv("NEO4J_USERNAME", "neo4j"),
             password=os.getenv("NEO4J_PASSWORD", "password"),
             database=os.getenv("NEO4J_DATABASE", "neo4j"),
+            max_connection_lifetime=int(
+                os.getenv("NEO4J_MAX_CONNECTION_LIFETIME", "1800")
+            ),
+            connection_timeout=float(
+                os.getenv("NEO4J_CONNECTION_TIMEOUT", "30")
+            ),
         )
 
 
 @dataclass
 class OpenAIConfig:
-    """OpenAI configuration for text embeddings."""
+    """OpenAI-compatible configuration for text embeddings (OpenAI, 硅基流动, New API, LiteLLM, etc.)."""
 
     api_key: str
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    base_url: str | None = None  # Optional custom base URL (e.g. https://api.siliconflow.cn/v1)
+    embedding_model: str = "Qwen/Qwen3-Embedding-8B"  # 硅基流动
+    embedding_dimensions: int = 4096  # Qwen3-Embedding-8B 输出维度
 
     @classmethod
     def from_env(cls) -> "OpenAIConfig":
         return cls(
             api_key=os.getenv("OPENAI_API_KEY", ""),
-            embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
-            embedding_dimensions=int(os.getenv("OPENAI_EMBEDDING_DIMENSIONS", "1536")),
+            base_url=os.getenv("OPENAI_API_BASE") or None,
+            embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B"),
+            embedding_dimensions=int(os.getenv("OPENAI_EMBEDDING_DIMENSIONS", "4096")),
         )
 
 
@@ -51,11 +62,13 @@ class AnthropicConfig:
     """Anthropic configuration for Claude Agent SDK."""
 
     api_key: str
+    base_url: str | None = None  # Optional custom base URL for proxy (LiteLLM/New API)
 
     @classmethod
     def from_env(cls) -> "AnthropicConfig":
         return cls(
             api_key=os.getenv("ANTHROPIC_API_KEY", ""),
+            base_url=os.getenv("ANTHROPIC_BASE_URL") or None,
         )
 
 

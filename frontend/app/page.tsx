@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -9,16 +9,11 @@ import {
   Container,
   Grid,
   GridItem,
-  Button,
-  Menu,
-  Portal,
 } from "@chakra-ui/react";
-import { LuMenu } from "react-icons/lu";
 import dynamic from "next/dynamic";
 import { ChatInterface } from "@/components/ChatInterface";
 import { DecisionTracePanel } from "@/components/DecisionTracePanel";
-import { SchemaDrawer } from "@/components/SchemaDrawer";
-import type { Decision, GraphData, GraphNode, ChatMessage } from "@/lib/api";
+import { getGraphData, type Decision, type GraphData, type GraphNode, type ChatMessage } from "@/lib/api";
 
 // Helper to convert a GraphNode to a Decision object
 function graphNodeToDecision(node: GraphNode): Decision {
@@ -53,7 +48,13 @@ export default function Home() {
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>(
     [],
   );
-  const [schemaDrawerOpen, setSchemaDrawerOpen] = useState(true);
+
+  // 页面加载时预拉取图数据，limit=0 表示不限制条数（全部加载）
+  useEffect(() => {
+    getGraphData(undefined, 2, undefined, 0)
+      .then(setGraphData)
+      .catch(() => {});
+  }, []);
 
   const handleDecisionSelect = useCallback((decision: Decision) => {
     setSelectedDecision(decision);
@@ -83,23 +84,25 @@ export default function Home() {
   }, []);
 
   return (
-    <Box minH="100vh" bg="bg.canvas">
-      {/* Schema Drawer */}
-      <SchemaDrawer
-        open={schemaDrawerOpen}
-        onOpenChange={setSchemaDrawerOpen}
-      />
-
+    <Box
+      h="100vh"
+      minH={0}
+      bg="bg.canvas"
+      display="flex"
+      flexDirection="column"
+      overflow="hidden"
+    >
       {/* Header */}
       <Box
         as="header"
+        flexShrink={0}
         bg="bg.surface"
         borderBottomWidth="1px"
         borderColor="border.default"
-        py={{ base: 2, md: 4 }}
-        px={{ base: 3, md: 6 }}
+        py={{ base: 2, md: 3 }}
+        px={{ base: 3, md: 4 }}
       >
-        <Container maxW="container.2xl">
+        <Container maxW="100%" px={{ base: 3, md: 4 }}>
           <Flex justify="space-between" align="center">
             <Flex align="center" gap={3}>
               {/* Neo4j Logo */}
@@ -149,118 +152,33 @@ export default function Home() {
               </a>
               <Box>
                 <Heading size={{ base: "md", md: "lg" }} color="brand.600">
-                  Context Graph Demo
+                  本体洞察分析
                 </Heading>
                 <Text
                   color="gray.500"
                   fontSize="sm"
                   display={{ base: "none", md: "block" }}
                 >
-                  AI-powered decision tracing with Neo4j
+                  基于本体的智能决策分析
                 </Text>
               </Box>
             </Flex>
 
-            {/* Desktop Navigation */}
-            <Flex gap={2} align="center" display={{ base: "none", md: "flex" }}>
-              <Button asChild variant="ghost" size="sm">
-                <a
-                  href="https://neo4j.com/blog/genai/hands-on-with-context-graphs-and-neo4j/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Blog Post
-                </a>
-              </Button>
-              <Button asChild variant="ghost" size="sm">
-                <a
-                  href="https://github.com/johnymontana/context-graph-demo/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Issues
-                </a>
-              </Button>
-              <Button asChild variant="ghost" size="sm">
-                <a
-                  href="https://github.com/johnymontana/context-graph-demo"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  GitHub
-                </a>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSchemaDrawerOpen(true)}
-              >
-                About & Schema
-              </Button>
-            </Flex>
-
-            {/* Mobile Hamburger Menu */}
-            <Box display={{ base: "block", md: "none" }}>
-              <Menu.Root>
-                <Menu.Trigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <LuMenu />
-                  </Button>
-                </Menu.Trigger>
-                <Portal>
-                  <Menu.Positioner>
-                    <Menu.Content>
-                      <Menu.Item value="blog" asChild>
-                        <a
-                          href="https://neo4j.com/blog/genai/hands-on-with-context-graphs-and-neo4j/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Blog Post
-                        </a>
-                      </Menu.Item>
-                      <Menu.Item value="issues" asChild>
-                        <a
-                          href="https://github.com/johnymontana/context-graph-demo/issues"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Issues
-                        </a>
-                      </Menu.Item>
-                      <Menu.Item value="github" asChild>
-                        <a
-                          href="https://github.com/johnymontana/context-graph-demo"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          GitHub
-                        </a>
-                      </Menu.Item>
-                      <Menu.Item
-                        value="schema"
-                        onClick={() => setSchemaDrawerOpen(true)}
-                      >
-                        About & Schema
-                      </Menu.Item>
-                    </Menu.Content>
-                  </Menu.Positioner>
-                </Portal>
-              </Menu.Root>
-            </Box>
           </Flex>
         </Container>
       </Box>
 
-      {/* Main Content */}
-      <Container maxW="container.2xl" py={{ base: 3, md: 6 }}>
-        <Grid
-          templateColumns={{ base: "1fr", lg: "1fr 1fr", xl: "1fr 1.5fr 1fr" }}
-          gap={{ base: 3, md: 6 }}
-          h={{ base: "calc(100vh - 60px)", md: "calc(100vh - 140px)" }}
-        >
+      {/* Main Content - 铺满剩余视口 */}
+      <Box flex={1} minH={0} display="flex" flexDirection="column" w="100%" overflow="hidden">
+        <Box flex={1} minH={0} display="flex" flexDirection="column" w="100%" px={{ base: 2, md: 3 }}>
+          <Grid
+            templateColumns={{ base: "1fr", lg: "1fr 1fr", xl: "1fr 1.5fr 1fr" }}
+            gap={{ base: 2, md: 3 }}
+            h="100%"
+            minH={0}
+          >
           {/* Chat Panel */}
-          <GridItem overflow="hidden">
+          <GridItem overflow="hidden" minH={0}>
             <Box
               bg="bg.surface"
               borderRadius="lg"
@@ -277,9 +195,9 @@ export default function Home() {
                 borderColor="border.default"
                 flexShrink={0}
               >
-                <Heading size="md">AI Assistant</Heading>
+                <Heading size="md">AI助手</Heading>
                 <Text fontSize="sm" color="gray.500">
-                  Ask questions about customers, decisions, and policies
+                  通过对话探查本体关系
                 </Text>
               </Box>
               <Box flex="1" minH={0} overflow="hidden">
@@ -294,7 +212,7 @@ export default function Home() {
           </GridItem>
 
           {/* Graph Visualization - Hidden on mobile */}
-          <GridItem display={{ base: "none", lg: "block" }} overflow="hidden">
+          <GridItem display={{ base: "none", lg: "block" }} overflow="hidden" minH={0}>
             <Box
               bg="bg.surface"
               borderRadius="lg"
@@ -311,9 +229,9 @@ export default function Home() {
                 borderColor="border.default"
                 flexShrink={0}
               >
-                <Heading size="md">Context Graph</Heading>
+                <Heading size="md">图谱可视化</Heading>
                 <Text fontSize="sm" color="gray.500">
-                  Visualize entities, decisions, and causal relationships
+                  本体实体、决策与因果关系可视化
                 </Text>
               </Box>
               <Box flex="1" minH={0}>
@@ -329,7 +247,7 @@ export default function Home() {
           </GridItem>
 
           {/* Decision Trace Panel */}
-          <GridItem display={{ base: "none", xl: "block" }} overflow="hidden">
+          <GridItem display={{ base: "none", xl: "block" }} overflow="hidden" minH={0}>
             <Box
               bg="bg.surface"
               borderRadius="lg"
@@ -346,9 +264,9 @@ export default function Home() {
                 borderColor="border.default"
                 flexShrink={0}
               >
-                <Heading size="md">Decision Trace</Heading>
+                <Heading size="md">决策追溯</Heading>
                 <Text fontSize="sm" color="gray.500">
-                  Inspect reasoning, precedents, and causal chains
+                  查看推理、先例与因果链
                 </Text>
               </Box>
               <Box flex="1" minH={0} overflow="auto">
@@ -360,8 +278,9 @@ export default function Home() {
               </Box>
             </Box>
           </GridItem>
-        </Grid>
-      </Container>
+          </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 }

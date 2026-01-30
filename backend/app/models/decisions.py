@@ -40,7 +40,7 @@ class Decision(BaseModel):
 
     # Embeddings
     fastrp_embedding: Optional[list[float]] = None  # 128 dims, structural
-    reasoning_embedding: Optional[list[float]] = None  # 1536 dims, semantic
+    reasoning_embedding: Optional[list[float]] = None  # 4096 dims, semantic (e.g. Qwen3-Embedding-8B)
 
     created_at: Optional[datetime] = None
 

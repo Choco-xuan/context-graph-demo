@@ -346,14 +346,15 @@ export async function getGraphData(
   centerNodeId?: string,
   depth = 2,
   nodeTypes?: string[],
+  limit?: number,
 ): Promise<GraphData> {
-  const response = await api.get("/api/graph", {
-    params: {
-      center_node_id: centerNodeId,
-      depth,
-      node_types: nodeTypes?.join(","),
-    },
-  });
+  const params: Record<string, string | number | undefined> = {
+    center_node_id: centerNodeId,
+    depth,
+    node_types: nodeTypes?.join(","),
+  };
+  if (limit !== undefined) params.limit = limit;
+  const response = await api.get("/api/graph", { params });
   return response.data;
 }
 

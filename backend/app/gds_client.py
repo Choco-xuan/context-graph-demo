@@ -17,6 +17,8 @@ class GDSClient:
         self.driver = GraphDatabase.driver(
             config.neo4j.uri,
             auth=(config.neo4j.username, config.neo4j.password),
+            max_connection_lifetime=config.neo4j.max_connection_lifetime,
+            connection_timeout=config.neo4j.connection_timeout,
         )
         self.database = config.neo4j.database
         self.fastrp_dimensions = config.fastrp_dimensions

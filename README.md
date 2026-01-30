@@ -109,8 +109,45 @@ Combine semantic similarity (text embeddings) with structural similarity (FastRP
 - Python 3.11+ with [uv](https://docs.astral.sh/uv/) package manager
 - Node.js 18+
 - Neo4j AuraDS instance (or local Neo4j Enterprise with GDS plugin)
-- Anthropic API Key
-- OpenAI API Key (for embeddings)
+- Anthropic API Key (or proxy API key)
+- OpenAI 兼容 API Key（默认使用硅基流动 Qwen/Qwen3-Embedding-8B 做语义嵌入）
+
+## Using LiteLLM or New API Proxy
+
+If you cannot directly access Claude API, you can use **LiteLLM** or **New API** as a proxy to provide OpenAI-compatible endpoints.
+
+### Option 1: Using LiteLLM
+
+1. **Start LiteLLM Proxy**:
+   ```bash
+   # Install LiteLLM
+   pip install litellm
+   
+   # Start proxy with Claude model
+   litellm --model claude-3-5-sonnet-20241022 --port 4000
+   ```
+
+2. **Configure `.env`**:
+   ```bash
+   # Use LiteLLM proxy endpoint
+   ANTHROPIC_BASE_URL=http://localhost:4000
+   ANTHROPIC_API_KEY=your_litellm_api_key
+   ```
+
+### Option 2: Using New API
+
+1. **Configure `.env`** (Claude + embeddings both via New API):
+   ```bash
+   # Claude (Agent SDK)
+   ANTHROPIC_BASE_URL=https://api.newapi.com/v1
+   ANTHROPIC_API_KEY=your_newapi_api_key
+
+   # Embeddings (OpenAI-compatible)
+   OPENAI_API_BASE=https://api.newapi.com/v1
+   OPENAI_API_KEY=your_newapi_api_key
+   ```
+
+The agent uses `ANTHROPIC_BASE_URL` for Claude; embeddings use `OPENAI_API_BASE` when set. Both can point to the same New API endpoint with the same API key.
 
 ## Quick Start
 
@@ -127,10 +164,19 @@ NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_neo4j_password
 
 # Anthropic API Key (for Claude Agent SDK)
+# If using LiteLLM/New API proxy, set ANTHROPIC_BASE_URL below
 ANTHROPIC_API_KEY=your_anthropic_key
 
-# OpenAI API Key (for text embeddings)
-OPENAI_API_KEY=your_openai_key
+# Optional: Custom API base URL for proxy (LiteLLM/New API)
+# Example: ANTHROPIC_BASE_URL=http://localhost:4000
+# Leave empty to use default Anthropic API endpoint
+ANTHROPIC_BASE_URL=
+
+# 语义嵌入（默认硅基流动 Qwen/Qwen3-Embedding-8B）
+OPENAI_API_KEY=your_siliconflow_api_key
+OPENAI_API_BASE=https://api.siliconflow.cn/v1
+OPENAI_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B
+OPENAI_EMBEDDING_DIMENSIONS=4096
 EOF
 ```
 
@@ -181,7 +227,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs at http://localhost:3000
+Frontend runs at http://localhost:3001
 
 ## Using Neo4j AuraDS (Recommended)
 

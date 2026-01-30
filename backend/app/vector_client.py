@@ -18,10 +18,15 @@ class VectorClient:
         self.driver = GraphDatabase.driver(
             config.neo4j.uri,
             auth=(config.neo4j.username, config.neo4j.password),
+            max_connection_lifetime=config.neo4j.max_connection_lifetime,
+            connection_timeout=config.neo4j.connection_timeout,
         )
         self.database = config.neo4j.database
+        kwargs: dict = {"api_key": config.openai.api_key}
+        if config.openai.base_url:
+            kwargs["base_url"] = config.openai.base_url
         self.openai_client = (
-            OpenAI(api_key=config.openai.api_key) if config.openai.api_key else None
+            OpenAI(**kwargs) if config.openai.api_key else None
         )
         self.embedding_model = config.openai.embedding_model
         self.embedding_dimensions = config.openai.embedding_dimensions

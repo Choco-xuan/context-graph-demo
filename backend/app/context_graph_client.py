@@ -52,6 +52,8 @@ class ContextGraphClient:
         self.driver = GraphDatabase.driver(
             config.neo4j.uri,
             auth=(config.neo4j.username, config.neo4j.password),
+            max_connection_lifetime=config.neo4j.max_connection_lifetime,
+            connection_timeout=config.neo4j.connection_timeout,
         )
         self.database = config.neo4j.database
 
@@ -126,23 +128,23 @@ class ContextGraphClient:
                 "policy_category_idx",
                 "CREATE INDEX policy_category_idx IF NOT EXISTS FOR (p:Policy) ON (p.category)",
             ),
-            # Vector indexes for semantic search (1536 dims for OpenAI embeddings)
+            # Vector indexes for semantic search (dimensions from config, e.g. Qwen3-Embedding-8B 4096)
             (
                 "vector",
                 "decision_reasoning_idx",
-                """
+                f"""
                 CREATE VECTOR INDEX decision_reasoning_idx IF NOT EXISTS
                 FOR (d:Decision) ON (d.reasoning_embedding)
-                OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}
+                OPTIONS {{indexConfig: {{`vector.dimensions`: {config.openai.embedding_dimensions}, `vector.similarity_function`: 'cosine'}}}}
             """,
             ),
             (
                 "vector",
                 "policy_description_idx",
-                """
+                f"""
                 CREATE VECTOR INDEX policy_description_idx IF NOT EXISTS
                 FOR (p:Policy) ON (p.description_embedding)
-                OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}
+                OPTIONS {{indexConfig: {{`vector.dimensions`: {config.openai.embedding_dimensions}, `vector.similarity_function`: 'cosine'}}}}
             """,
             ),
             # Vector indexes for FastRP structural embeddings (128 dims)
@@ -546,7 +548,9 @@ class ContextGraphClient:
         include_decisions: bool = True,
         limit: int = 100,
     ) -> GraphData:
-        """Get graph data for NVL visualization."""
+        """Get graph data for NVL visualization. limit=0 表示不限制，全部加载。"""
+        # limit=0 视为不限制，用较大上限避免 Cypher LIMIT 0 返回空
+        effective_limit = 1_000_000 if limit <= 0 else limit
         with self.driver.session(database=self.database) as session:
             if center_node_id:
                 # Get subgraph centered on a specific node using variable-length paths
@@ -563,22 +567,21 @@ class ContextGraphClient:
                     WITH [center] + connectedNodes[0..$limit] AS nodes, allRels AS relationships
                     RETURN nodes, relationships
                     """,
-                    {"center_id": center_node_id, "limit": limit},
+                    {"center_id": center_node_id, "limit": effective_limit},
                 )
             else:
-                # Get a sample of the graph - mix of different node types
-                decision_filter = "" if include_decisions else "WHERE NOT 'Decision' IN labels(n)"
+                # 先取一批边，再收两端点作为节点，保证每条关系的两端都在节点列表中
+                decision_filter = "" if include_decisions else "WHERE NOT 'Decision' IN labels(a) AND NOT 'Decision' IN labels(b)"
                 result = session.run(
                     f"""
-                    MATCH (n)
+                    MATCH (a)-[r]-(b)
                     {decision_filter}
-                    WITH n LIMIT $limit
-                    OPTIONAL MATCH (n)-[r]-(m)
-                    WITH collect(DISTINCT n) + collect(DISTINCT m) AS nodes,
+                    WITH a, r, b LIMIT $limit
+                    WITH collect(DISTINCT a) + collect(DISTINCT b) AS nodes,
                          collect(DISTINCT r) AS relationships
-                    RETURN nodes[0..$limit] AS nodes, relationships
+                    RETURN nodes, relationships
                     """,
-                    {"limit": limit},
+                    {"limit": effective_limit},
                 )
 
             record = result.single()
@@ -612,6 +615,14 @@ class ContextGraphClient:
                             properties=convert_node_properties(dict(rel)),
                         )
                     )
+
+            # 只保留两端点都在节点列表中的关系，否则前端无法绘制边
+            node_ids = {n.id for n in nodes}
+            relationships = [
+                r
+                for r in relationships
+                if r.start_node_id in node_ids and r.end_node_id in node_ids
+            ]
 
             return GraphData(nodes=nodes, relationships=relationships)
 

@@ -91,11 +91,11 @@ export function DecisionTracePanel({
 
   // Only show decisions from the graph
   const decisionsToShow = graphDecisions;
-  const listTitle = "Decisions in Graph";
+  const listTitle = "图中的决策";
   const listDescription =
     graphDecisions.length > 0
-      ? "Decisions visible in the Context Graph. Click to view details, or double-click nodes in the graph to expand."
-      : "Use the AI assistant to search for customers or decisions. Decision nodes will appear here when added to the graph.";
+      ? "语境图中可见的决策。点击查看详情，双击节点可展开。"
+      : "使用 AI 助手搜索客户或决策。决策节点加入图后会在此显示。";
 
   // Show decisions list when no decision is selected
   if (!decision) {
@@ -109,8 +109,7 @@ export function DecisionTracePanel({
 
           {graphDecisions.length > 0 && (
             <Badge colorPalette="blue" size="sm" alignSelf="flex-start">
-              {graphDecisions.length} decision
-              {graphDecisions.length !== 1 ? "s" : ""} in graph
+              图中共 {graphDecisions.length} 个决策
             </Badge>
           )}
 
@@ -126,7 +125,7 @@ export function DecisionTracePanel({
             </VStack>
           ) : (
             <Text color="gray.500" textAlign="center" py={4}>
-              No decisions in graph yet.
+              图中暂无决策。
             </Text>
           )}
         </VStack>
@@ -147,7 +146,7 @@ export function DecisionTracePanel({
           colorPalette="gray"
           onClick={() => onDecisionSelect(null as unknown as Decision)}
         >
-          ← Back to list
+          ← 返回列表
         </Button>
 
         {/* Decision Header */}
@@ -174,7 +173,7 @@ export function DecisionTracePanel({
           <Text fontSize="sm" color="gray.500">
             {decision.timestamp
               ? new Date(decision.timestamp).toLocaleString()
-              : "Unknown date"}
+              : "日期未知"}
           </Text>
           <Text fontSize="xs" color="gray.400" mt={1}>
             ID: {decision.id.slice(0, 8)}...
@@ -186,7 +185,7 @@ export function DecisionTracePanel({
         {/* Reasoning */}
         <Box>
           <Heading size="sm" mb={2}>
-            Reasoning
+            推理说明
           </Heading>
           <Box
             bg="bg.subtle"
@@ -195,7 +194,7 @@ export function DecisionTracePanel({
             fontSize="sm"
             whiteSpace="pre-wrap"
           >
-            {decision.reasoning || "No reasoning provided."}
+            {decision.reasoning || "未提供推理说明。"}
           </Box>
         </Box>
 
@@ -203,12 +202,12 @@ export function DecisionTracePanel({
         <HStack gap={4}>
           <Box>
             <Text fontSize="xs" color="gray.500" mb={1}>
-              Confidence Score
+              置信度
             </Text>
             <Text fontWeight="medium">
               {(decision.confidence ?? decision.confidence_score)
                 ? `${((decision.confidence ?? decision.confidence_score ?? 0) * 100).toFixed(0)}%`
-                : "N/A"}
+                : "无"}
             </Text>
           </Box>
         </HStack>
@@ -218,7 +217,7 @@ export function DecisionTracePanel({
           decision.risk_factors.length > 0 && (
             <Box>
               <Heading size="sm" mb={2}>
-                Risk Factors
+                风险因素
               </Heading>
               <Flex gap={2} flexWrap="wrap">
                 {decision.risk_factors.map((factor, idx) => (
@@ -247,7 +246,7 @@ export function DecisionTracePanel({
               {causalChain.causes && causalChain.causes.length > 0 && (
                 <Box>
                   <Text fontSize="xs" color="gray.500" mb={1}>
-                    Caused by ({causalChain.causes.length})
+                    原因 ({causalChain.causes.length})
                   </Text>
                   {causalChain.causes.map((cause) => (
                     <DecisionCard
@@ -264,7 +263,7 @@ export function DecisionTracePanel({
               {causalChain.effects && causalChain.effects.length > 0 && (
                 <Box>
                   <Text fontSize="xs" color="gray.500" mb={1}>
-                    Led to ({causalChain.effects.length})
+                    结果 ({causalChain.effects.length})
                   </Text>
                   {causalChain.effects.map((effect) => (
                     <DecisionCard
@@ -280,7 +279,7 @@ export function DecisionTracePanel({
               {(!causalChain.causes || causalChain.causes.length === 0) &&
                 (!causalChain.effects || causalChain.effects.length === 0) && (
                   <Text fontSize="sm" color="gray.500">
-                    No causal relationships found.
+                    未找到因果关系。
                   </Text>
                 )}
             </VStack>
@@ -296,7 +295,7 @@ export function DecisionTracePanel({
         {/* Similar Decisions */}
         <Box>
           <Heading size="sm" mb={2}>
-            Similar Decisions
+            相似决策
           </Heading>
           {loading ? (
             <Flex justify="center" py={4}>
@@ -314,7 +313,7 @@ export function DecisionTracePanel({
             </VStack>
           ) : (
             <Text fontSize="sm" color="gray.500">
-              No similar decisions found.
+              未找到相似决策。
             </Text>
           )}
         </Box>
@@ -364,7 +363,7 @@ function RecentDecisionCard({
         )}
       </HStack>
       <Text fontSize="sm" color="gray.600" lineClamp={2}>
-        {decision.reasoning?.slice(0, 120) || "No reasoning"}
+        {decision.reasoning?.slice(0, 120) || "无推理"}
         {decision.reasoning && decision.reasoning.length > 120 ? "..." : ""}
       </Text>
       <HStack justify="space-between" mt={2}>
@@ -456,7 +455,7 @@ function SimilarDecisionCard({
         </HStack>
       </HStack>
       <Text fontSize="sm" color="gray.600" lineClamp={2}>
-        {decision.reasoning?.slice(0, 150) || "No reasoning"}...
+        {decision.reasoning?.slice(0, 150) || "无推理"}...
       </Text>
       <Text fontSize="xs" color="gray.400" mt={1}>
         {(decision.timestamp ?? decision.decision_timestamp)

@@ -366,42 +366,41 @@ export function ChatInterface({
               borderColor="brand.200"
             >
               <Text fontWeight="medium" mb={2}>
-                Welcome to Context Graph Demo
+                欢迎使用本体洞察
               </Text>
               <Text
                 fontSize="sm"
                 color="gray.600"
                 _dark={{ color: "gray.400" }}
               >
-                I can help you search for customers, analyze decisions, find
-                similar precedents, and trace causal relationships. Try asking:
+                我可以帮您搜索客户、分析决策、查找类似先例并追溯因果关系。试试提问：
               </Text>
               <VStack align="start" mt={3} gap={1}>
                 <SuggestionChip
-                  text="Should we approve a credit limit increase for Jessica Norris? She's requesting a $25,000 limit increase."
+                  text="是否批准 Jessica Norris 的信用额度提升？她申请将额度提高 2.5 万美元。"
                   onClick={() =>
                     setInput(
-                      "Should we approve a credit limit increase for Jessica Norris? She's requesting a $25,000 limit increase.",
+                      "是否批准 Jessica Norris 的信用额度提升？她申请将额度提高 2.5 万美元。",
                     )
                   }
                 />
                 <SuggestionChip
-                  text="Search for customer John Walsh"
-                  onClick={() => setInput("Search for customer John Walsh")}
+                  text="搜索客户 John Walsh"
+                  onClick={() => setInput("搜索客户 John Walsh")}
                 />
                 <SuggestionChip
-                  text="A customer wants to make a $15,000 wire transfer. What policies apply and are there similar past decisions?"
+                  text="客户要进行 1.5 万美元的电汇。适用哪些政策？有无类似历史决策？"
                   onClick={() =>
                     setInput(
-                      "A customer wants to make a $15,000 wire transfer. What policies apply and are there similar past decisions?",
+                      "客户要进行 1.5 万美元的电汇。适用哪些政策？有无类似历史决策？",
                     )
                   }
                 />
                 <SuggestionChip
-                  text="We need to override the trading limit for Katherine Miller. Find precedents for similar exceptions."
+                  text="需要为 Katherine Miller 提高交易限额。查找类似例外先例。"
                   onClick={() =>
                     setInput(
-                      "We need to override the trading limit for Katherine Miller. Find precedents for similar exceptions.",
+                      "需要为 Katherine Miller 提高交易限额。查找类似例外先例。",
                     )
                   }
                 />
@@ -434,7 +433,7 @@ export function ChatInterface({
               <Flex align="center" gap={2} p={3}>
                 <Spinner size="sm" color="brand.500" />
                 <Text fontSize="sm" color="gray.500">
-                  Thinking...
+                  思考中...
                 </Text>
               </Flex>
             )}
@@ -461,13 +460,13 @@ export function ChatInterface({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about customers, decisions, or policies..."
+            placeholder="询问客户、决策或政策..."
             rows={1}
             resize="none"
             flex={1}
           />
           <IconButton
-            aria-label="Send message"
+            aria-label="发送消息"
             onClick={handleSend}
             colorPalette="brand"
           >
@@ -506,7 +505,7 @@ function ToolCallDisplay({
     >
       <HStack mb={2}>
         <Badge colorPalette="blue" fontSize="xs">
-          Tool Call
+          工具调用
         </Badge>
         <Text fontWeight="bold" fontSize="sm">
           {toolCall.name.replace("mcp__graph__", "")}
@@ -515,7 +514,7 @@ function ToolCallDisplay({
 
       <Box mb={2}>
         <Text fontSize="xs" color="gray.600" fontWeight="semibold" mb={1}>
-          Arguments:
+          参数：
         </Text>
         <Code
           display="block"
@@ -534,7 +533,7 @@ function ToolCallDisplay({
       {toolCall.output !== undefined && (
         <Box>
           <Text fontSize="xs" color="gray.600" fontWeight="semibold" mb={1}>
-            Output:
+            输出：
           </Text>
           <Code
             display="block"
@@ -568,10 +567,10 @@ function AgentContextDisclosure({
             <Box flex="1" textAlign="left">
               <HStack>
                 <Badge colorPalette="teal" fontSize="xs">
-                  Agent Context
+                  代理上下文
                 </Badge>
                 <Text fontSize="xs" color="gray.600">
-                  View system prompt and configuration
+                  查看系统提示与配置
                 </Text>
               </HStack>
             </Box>
@@ -596,7 +595,7 @@ function AgentContextDisclosure({
                         fontWeight="semibold"
                         mb={1}
                       >
-                        Model:
+                        模型：
                       </Text>
                       <Badge colorPalette="teal" fontSize="xs">
                         {agentContext.model}
@@ -611,7 +610,7 @@ function AgentContextDisclosure({
                         fontWeight="semibold"
                         mb={1}
                       >
-                        MCP Server:
+                        MCP 服务：
                       </Text>
                       <Badge colorPalette="purple" fontSize="xs">
                         {agentContext.mcp_server}
@@ -626,7 +625,7 @@ function AgentContextDisclosure({
                         fontWeight="semibold"
                         mb={1}
                       >
-                        Available Tools:
+                        可用工具：
                       </Text>
                       <Flex gap={1} flexWrap="wrap">
                         {agentContext.available_tools.map((tool, idx) => (
@@ -645,7 +644,7 @@ function AgentContextDisclosure({
                         fontWeight="semibold"
                         mb={1}
                       >
-                        System Prompt:
+                        系统提示：
                       </Text>
                       <Code
                         display="block"
@@ -683,10 +682,10 @@ function ToolCallsDisclosure({ toolCalls }: { toolCalls: ToolCall[] }) {
             <Box flex="1" textAlign="left">
               <HStack>
                 <Badge colorPalette="purple" fontSize="xs">
-                  Tool Calls ({toolCalls.length})
+                  工具调用 ({toolCalls.length})
                 </Badge>
                 <Text fontSize="xs" color="gray.600">
-                  View tool parameters and results
+                  查看工具参数与结果
                 </Text>
               </HStack>
             </Box>

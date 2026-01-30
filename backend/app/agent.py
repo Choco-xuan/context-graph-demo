@@ -4,10 +4,12 @@ Provides MCP tools for querying and updating the context graph.
 """
 
 import json
+import os
 from typing import Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, create_sdk_mcp_server, tool
 
+from .config import config
 from .context_graph_client import context_graph_client
 from .gds_client import gds_client
 from .vector_client import vector_client
@@ -541,6 +543,14 @@ def create_context_graph_server():
 def get_agent_options() -> ClaudeAgentOptions:
     """Get the agent options with context graph server configured."""
     context_graph_server = create_context_graph_server()
+
+    # Set environment variables for custom base URL if configured
+    # claude-agent-sdk reads ANTHROPIC_BASE_URL from environment
+    if config.anthropic.base_url:
+        os.environ["ANTHROPIC_BASE_URL"] = config.anthropic.base_url
+        # If using a proxy, ensure API key is set correctly
+        if config.anthropic.api_key:
+            os.environ["ANTHROPIC_API_KEY"] = config.anthropic.api_key
 
     return ClaudeAgentOptions(
         system_prompt=CONTEXT_GRAPH_SYSTEM_PROMPT,

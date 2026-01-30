@@ -65,7 +65,7 @@ dev-backend:
 		uvicorn app.main:app --reload --port 8000
 
 dev-frontend:
-	@echo "Starting frontend on http://localhost:3000..."
+	@echo "Starting frontend on http://localhost:3001..."
 	cd frontend && npm run dev
 
 # =============================================================================

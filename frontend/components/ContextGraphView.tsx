@@ -338,11 +338,10 @@ export function ContextGraphView({
         p={8}
       >
         <Text color="gray.500" textAlign="center">
-          No graph data to display.
+          暂无图数据可展示。
         </Text>
         <Text color="gray.400" fontSize="sm" textAlign="center">
-          Use the AI assistant to search for customers or decisions to visualize
-          the context graph.
+          使用 AI 助手搜索客户或决策，即可可视化语境图。
         </Text>
       </Flex>
     );
@@ -400,8 +399,7 @@ export function ContextGraphView({
         >
           <Flex justify="space-between" align="center" mb={2}>
             <Heading size="sm">
-              {selectedElement.type === "node" ? "Node" : "Relationship"}{" "}
-              Properties
+              {selectedElement.type === "node" ? "节点" : "关系"} 属性
             </Heading>
             <CloseButton size="sm" onClick={handleClosePanel} />
           </Flex>
@@ -410,7 +408,7 @@ export function ContextGraphView({
             <VStack align="stretch" gap={2}>
               <HStack>
                 <Text fontSize="xs" fontWeight="bold" color="gray.500">
-                  Labels:
+                  标签：
                 </Text>
                 <Flex gap={1} flexWrap="wrap">
                   {(selectedElement.data as GraphNode).labels.map((label) => (
@@ -429,7 +427,7 @@ export function ContextGraphView({
               </HStack>
               <Box>
                 <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>
-                  Properties:
+                  属性：
                 </Text>
                 <VStack align="stretch" gap={1}>
                   {Object.entries(
@@ -464,8 +462,8 @@ export function ContextGraphView({
           {selectedElement.type === "relationship" && (
             <VStack align="stretch" gap={2}>
               <HStack>
-                <Text fontSize="xs" fontWeight="bold" color="gray.500">
-                  Type:
+<Text fontSize="xs" fontWeight="bold" color="gray.500">
+                类型：
                 </Text>
                 <Badge size="sm" colorPalette="gray">
                   {(selectedElement.data as GraphRelationship).type}
@@ -473,7 +471,7 @@ export function ContextGraphView({
               </HStack>
               <Box>
                 <Text fontSize="xs" fontWeight="bold" color="gray.500">
-                  From:{" "}
+                  从：{" "}
                   <Text as="span" fontWeight="normal">
                     {(selectedElement.data as GraphRelationship).startNodeId}
                   </Text>
@@ -492,7 +490,7 @@ export function ContextGraphView({
               ).length > 0 && (
                 <Box>
                   <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>
-                    Properties:
+                    属性：
                   </Text>
                   <VStack align="stretch" gap={1}>
                     {Object.entries(
@@ -539,8 +537,7 @@ export function ContextGraphView({
         opacity={0.8}
       >
         <Text fontSize="xs" color="gray.500">
-          Scroll to zoom | Drag canvas to pan | Drag nodes to move | Click to
-          inspect | Double-click to expand
+          滚轮缩放 | 拖拽画布平移 | 拖拽节点移动 | 点击查看 | 双击展开
         </Text>
       </Box>
 
@@ -562,7 +559,7 @@ export function ContextGraphView({
           gap={2}
         >
           <Spinner size="sm" />
-          <Text fontSize="sm">Expanding node...</Text>
+          <Text fontSize="sm">展开节点中...</Text>
         </Flex>
       )}
 
@@ -621,7 +618,7 @@ function NvlGraph({
   if (!NvlComponent) {
     return (
       <Flex h="100%" align="center" justify="center">
-        <Text color="gray.500">Loading graph visualization...</Text>
+        <Text color="gray.500">加载图中...</Text>
       </Flex>
     );
   }
