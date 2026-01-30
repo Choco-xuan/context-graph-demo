@@ -102,8 +102,8 @@ export function DecisionTracePanel({
     return (
       <Box p={4}>
         <VStack gap={4} align="stretch">
-          <Heading size="sm">{listTitle}</Heading>
-          <Text fontSize="sm" color="gray.500">
+          <Heading size="sm" color="gray.100">{listTitle}</Heading>
+          <Text fontSize="sm" color="gray.400">
             {listDescription}
           </Text>
 
@@ -124,7 +124,7 @@ export function DecisionTracePanel({
               ))}
             </VStack>
           ) : (
-            <Text color="gray.500" textAlign="center" py={4}>
+            <Text color="gray.400" textAlign="center" py={4}>
               图中暂无决策。
             </Text>
           )}
@@ -144,6 +144,9 @@ export function DecisionTracePanel({
           size="sm"
           variant="outline"
           colorPalette="gray"
+          borderColor="whiteAlpha.300"
+          color="gray.300"
+          _hover={{ bg: "whiteAlpha.100", borderColor: "whiteAlpha.400" }}
           onClick={() => onDecisionSelect(null as unknown as Decision)}
         >
           ← 返回列表
@@ -170,29 +173,32 @@ export function DecisionTracePanel({
               {decision.status}
             </Badge>
           </HStack>
-          <Text fontSize="sm" color="gray.500">
+          <Text fontSize="sm" color="gray.400">
             {decision.timestamp
               ? new Date(decision.timestamp).toLocaleString()
               : "日期未知"}
           </Text>
-          <Text fontSize="xs" color="gray.400" mt={1}>
+          <Text fontSize="xs" color="gray.500" mt={1}>
             ID: {decision.id.slice(0, 8)}...
           </Text>
         </Box>
 
-        <Separator />
+        <Separator borderColor="whiteAlpha.200" />
 
         {/* Reasoning */}
         <Box>
-          <Heading size="sm" mb={2}>
+          <Heading size="sm" mb={2} color="gray.100">
             推理说明
           </Heading>
           <Box
-            bg="bg.subtle"
+            bg="gray.800"
+            color="gray.200"
             p={3}
             borderRadius="md"
             fontSize="sm"
             whiteSpace="pre-wrap"
+            borderWidth="1px"
+            borderColor="whiteAlpha.100"
           >
             {decision.reasoning || "未提供推理说明。"}
           </Box>
@@ -201,10 +207,10 @@ export function DecisionTracePanel({
         {/* Confidence */}
         <HStack gap={4}>
           <Box>
-            <Text fontSize="xs" color="gray.500" mb={1}>
+            <Text fontSize="xs" color="gray.400" mb={1}>
               置信度
             </Text>
-            <Text fontWeight="medium">
+            <Text fontWeight="medium" color="gray.100">
               {(decision.confidence ?? decision.confidence_score)
                 ? `${((decision.confidence ?? decision.confidence_score ?? 0) * 100).toFixed(0)}%`
                 : "无"}
@@ -216,7 +222,7 @@ export function DecisionTracePanel({
         {Array.isArray(decision.risk_factors) &&
           decision.risk_factors.length > 0 && (
             <Box>
-              <Heading size="sm" mb={2}>
+              <Heading size="sm" mb={2} color="gray.100">
                 风险因素
               </Heading>
               <Flex gap={2} flexWrap="wrap">
@@ -229,23 +235,23 @@ export function DecisionTracePanel({
             </Box>
           )}
 
-        <Separator />
+        <Separator borderColor="whiteAlpha.200" />
 
         {/* Causal Chain */}
         <Box>
-          <Heading size="sm" mb={2}>
+          <Heading size="sm" mb={2} color="gray.100">
             Causal Chain
           </Heading>
           {loading ? (
             <Flex justify="center" py={4}>
-              <Spinner size="sm" />
+              <Spinner size="sm" color="cyan.400" />
             </Flex>
           ) : causalChain ? (
             <VStack gap={2} align="stretch">
               {/* Causes */}
               {causalChain.causes && causalChain.causes.length > 0 && (
                 <Box>
-                  <Text fontSize="xs" color="gray.500" mb={1}>
+                  <Text fontSize="xs" color="gray.400" mb={1}>
                     原因 ({causalChain.causes.length})
                   </Text>
                   {causalChain.causes.map((cause) => (
@@ -262,7 +268,7 @@ export function DecisionTracePanel({
               {/* Effects */}
               {causalChain.effects && causalChain.effects.length > 0 && (
                 <Box>
-                  <Text fontSize="xs" color="gray.500" mb={1}>
+                  <Text fontSize="xs" color="gray.400" mb={1}>
                     结果 ({causalChain.effects.length})
                   </Text>
                   {causalChain.effects.map((effect) => (
@@ -278,28 +284,28 @@ export function DecisionTracePanel({
 
               {(!causalChain.causes || causalChain.causes.length === 0) &&
                 (!causalChain.effects || causalChain.effects.length === 0) && (
-                  <Text fontSize="sm" color="gray.500">
+                  <Text fontSize="sm" color="gray.400">
                     未找到因果关系。
                   </Text>
                 )}
             </VStack>
           ) : (
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="gray.400">
               No causal chain data.
             </Text>
           )}
         </Box>
 
-        <Separator />
+        <Separator borderColor="whiteAlpha.200" />
 
         {/* Similar Decisions */}
         <Box>
-          <Heading size="sm" mb={2}>
+          <Heading size="sm" mb={2} color="gray.100">
             相似决策
           </Heading>
           {loading ? (
             <Flex justify="center" py={4}>
-              <Spinner size="sm" />
+              <Spinner size="sm" color="cyan.400" />
             </Flex>
           ) : similarDecisions.length > 0 ? (
             <VStack gap={2} align="stretch">
@@ -312,7 +318,7 @@ export function DecisionTracePanel({
               ))}
             </VStack>
           ) : (
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="gray.400">
               未找到相似决策。
             </Text>
           )}
@@ -335,14 +341,16 @@ function RecentDecisionCard({
 
   return (
     <Box
-      bg="bg.subtle"
+      bg="gray.800"
       p={3}
       borderRadius="md"
       cursor="pointer"
-      _hover={{ bg: "bg.emphasized" }}
+      _hover={{ bg: "gray.700" }}
       onClick={onClick}
       borderLeftWidth="3px"
       borderLeftColor={`${typeColor}.500`}
+      borderWidth="1px"
+      borderColor="whiteAlpha.100"
     >
       <HStack justify="space-between" mb={1} flexWrap="wrap" gap={1}>
         <HStack gap={1}>
@@ -354,7 +362,7 @@ function RecentDecisionCard({
           </Badge>
         </HStack>
         {(decision.confidence ?? decision.confidence_score) && (
-          <Text fontSize="xs" color="gray.500">
+          <Text fontSize="xs" color="gray.400">
             {(
               (decision.confidence ?? decision.confidence_score ?? 0) * 100
             ).toFixed(0)}
@@ -362,12 +370,12 @@ function RecentDecisionCard({
           </Text>
         )}
       </HStack>
-      <Text fontSize="sm" color="gray.600" lineClamp={2}>
+      <Text fontSize="sm" color="gray.200" lineClamp={2}>
         {decision.reasoning?.slice(0, 120) || "无推理"}
         {decision.reasoning && decision.reasoning.length > 120 ? "..." : ""}
       </Text>
       <HStack justify="space-between" mt={2}>
-        <Text fontSize="xs" color="gray.400">
+        <Text fontSize="xs" color="gray.500">
           {decision.timestamp
             ? new Date(decision.timestamp).toLocaleDateString()
             : ""}
@@ -398,22 +406,24 @@ function DecisionCard({
 
   return (
     <Box
-      bg="bg.subtle"
+      bg="gray.800"
       p={2}
       borderRadius="md"
       cursor="pointer"
-      _hover={{ bg: "bg.emphasized" }}
+      _hover={{ bg: "gray.700" }}
       onClick={onClick}
       mb={1}
+      borderWidth="1px"
+      borderColor="whiteAlpha.100"
     >
       <HStack gap={2}>
-        <Text color={direction === "cause" ? "blue.500" : "green.500"}>
+        <Text color={direction === "cause" ? "blue.400" : "green.400"}>
           {arrow}
         </Text>
         <Badge size="sm" colorPalette={typeColor}>
           {decision.decision_type.replace(/_/g, " ")}
         </Badge>
-        <Text fontSize="xs" color="gray.500" flex={1} truncate>
+        <Text fontSize="xs" color="gray.300" flex={1} truncate>
           {decision.category}
         </Text>
       </HStack>
@@ -434,12 +444,14 @@ function SimilarDecisionCard({
 
   return (
     <Box
-      bg="bg.subtle"
+      bg="gray.800"
       p={3}
       borderRadius="md"
       cursor="pointer"
-      _hover={{ bg: "bg.emphasized" }}
+      _hover={{ bg: "gray.700" }}
       onClick={onClick}
+      borderWidth="1px"
+      borderColor="whiteAlpha.100"
     >
       <HStack justify="space-between" mb={1}>
         <Badge size="sm" colorPalette={typeColor}>
@@ -449,15 +461,15 @@ function SimilarDecisionCard({
           <Badge size="sm" variant="outline">
             {similarity_type}
           </Badge>
-          <Text fontSize="xs" fontWeight="bold" color="brand.500">
+          <Text fontSize="xs" fontWeight="bold" color="cyan.400">
             {(similarity_score * 100).toFixed(0)}%
           </Text>
         </HStack>
       </HStack>
-      <Text fontSize="sm" color="gray.600" lineClamp={2}>
+      <Text fontSize="sm" color="gray.200" lineClamp={2}>
         {decision.reasoning?.slice(0, 150) || "无推理"}...
       </Text>
-      <Text fontSize="xs" color="gray.400" mt={1}>
+      <Text fontSize="xs" color="gray.500" mt={1}>
         {(decision.timestamp ?? decision.decision_timestamp)
           ? new Date(
               decision.timestamp ?? decision.decision_timestamp ?? "",

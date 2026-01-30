@@ -460,10 +460,18 @@ export function ChatInterface({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="询问客户、决策或政策..."
+            placeholder="请输入您要分析的内容..."
             rows={1}
             resize="none"
             flex={1}
+            borderWidth="2px"
+            borderColor="cyan.400"
+            bg="blackAlpha.400"
+            _focusVisible={{
+              borderColor: "cyan.300",
+              boxShadow: "0 0 0 2px var(--chakra-colors-cyan-500-50)",
+            }}
+            _placeholder={{ color: "whiteAlpha.600" }}
           />
           <IconButton
             aria-label="发送消息"
@@ -487,7 +495,7 @@ function formatJSON(obj: unknown): string {
   }
 }
 
-// Tool call display component
+// Tool call display component（中间过程输出 - 深色配色保证可读）
 function ToolCallDisplay({
   toolCall,
   index,
@@ -507,13 +515,13 @@ function ToolCallDisplay({
         <Badge colorPalette="blue" fontSize="xs">
           工具调用
         </Badge>
-        <Text fontWeight="bold" fontSize="sm">
+        <Text fontWeight="bold" fontSize="sm" color="gray.100">
           {toolCall.name.replace("mcp__graph__", "")}
         </Text>
       </HStack>
 
       <Box mb={2}>
-        <Text fontSize="xs" color="gray.600" fontWeight="semibold" mb={1}>
+        <Text fontSize="xs" color="gray.300" fontWeight="semibold" mb={1}>
           参数：
         </Text>
         <Code
@@ -522,7 +530,10 @@ function ToolCallDisplay({
           p={2}
           borderRadius="md"
           fontSize="xs"
-          bg="gray.50"
+          bg="gray.900"
+          color="gray.200"
+          borderWidth="1px"
+          borderColor="whiteAlpha.100"
           maxH="200px"
           overflowY="auto"
         >
@@ -532,7 +543,7 @@ function ToolCallDisplay({
 
       {toolCall.output !== undefined && (
         <Box>
-          <Text fontSize="xs" color="gray.600" fontWeight="semibold" mb={1}>
+          <Text fontSize="xs" color="gray.300" fontWeight="semibold" mb={1}>
             输出：
           </Text>
           <Code
@@ -541,7 +552,10 @@ function ToolCallDisplay({
             p={2}
             borderRadius="md"
             fontSize="xs"
-            bg="gray.50"
+            bg="gray.900"
+            color="gray.200"
+            borderWidth="1px"
+            borderColor="whiteAlpha.100"
             maxH="300px"
             overflowY="auto"
           >
@@ -553,14 +567,14 @@ function ToolCallDisplay({
   );
 }
 
-// Agent context disclosure component
+// Agent context disclosure component（中间过程输出 - 深色配色保证可读）
 function AgentContextDisclosure({
   agentContext,
 }: {
   agentContext: AgentContext;
 }) {
   return (
-    <Box mb={3} pb={3} borderBottom="1px solid" borderColor="gray.200">
+    <Box mb={3} pb={3} borderBottom="1px solid" borderColor="whiteAlpha.200">
       <Accordion.Root collapsible defaultValue={[]}>
         <Accordion.Item value="agent-context" border="none">
           <Accordion.ItemTrigger px={0} py={2} _hover={{ bg: "transparent" }}>
@@ -569,7 +583,7 @@ function AgentContextDisclosure({
                 <Badge colorPalette="teal" fontSize="xs">
                   代理上下文
                 </Badge>
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="gray.400">
                   查看系统提示与配置
                 </Text>
               </HStack>
@@ -581,17 +595,17 @@ function AgentContextDisclosure({
               <VStack align="stretch" gap={3}>
                 <Box
                   p={3}
-                  bg="teal.50"
+                  bg="gray.800"
                   borderRadius="md"
                   border="1px solid"
-                  borderColor="teal.200"
+                  borderColor="whiteAlpha.200"
                 >
                   <VStack align="stretch" gap={3}>
                     {/* Model */}
                     <Box>
                       <Text
                         fontSize="xs"
-                        color="gray.600"
+                        color="gray.300"
                         fontWeight="semibold"
                         mb={1}
                       >
@@ -606,7 +620,7 @@ function AgentContextDisclosure({
                     <Box>
                       <Text
                         fontSize="xs"
-                        color="gray.600"
+                        color="gray.300"
                         fontWeight="semibold"
                         mb={1}
                       >
@@ -621,7 +635,7 @@ function AgentContextDisclosure({
                     <Box>
                       <Text
                         fontSize="xs"
-                        color="gray.600"
+                        color="gray.300"
                         fontWeight="semibold"
                         mb={1}
                       >
@@ -640,7 +654,7 @@ function AgentContextDisclosure({
                     <Box>
                       <Text
                         fontSize="xs"
-                        color="gray.600"
+                        color="gray.300"
                         fontWeight="semibold"
                         mb={1}
                       >
@@ -652,7 +666,10 @@ function AgentContextDisclosure({
                         p={2}
                         borderRadius="md"
                         fontSize="xs"
-                        bg="white"
+                        bg="gray.900"
+                        color="gray.200"
+                        borderWidth="1px"
+                        borderColor="whiteAlpha.100"
                         maxH="300px"
                         overflowY="auto"
                       >
@@ -670,12 +687,12 @@ function AgentContextDisclosure({
   );
 }
 
-// Tool calls disclosure component
+// Tool calls disclosure component（中间过程输出 - 深色配色）
 function ToolCallsDisclosure({ toolCalls }: { toolCalls: ToolCall[] }) {
   if (!toolCalls || toolCalls.length === 0) return null;
 
   return (
-    <Box mb={3} pb={3} borderBottom="1px solid" borderColor="gray.200">
+    <Box mb={3} pb={3} borderBottom="1px solid" borderColor="whiteAlpha.200">
       <Accordion.Root collapsible defaultValue={[]}>
         <Accordion.Item value="tool-calls" border="none">
           <Accordion.ItemTrigger px={0} py={2} _hover={{ bg: "transparent" }}>
@@ -684,7 +701,7 @@ function ToolCallsDisclosure({ toolCalls }: { toolCalls: ToolCall[] }) {
                 <Badge colorPalette="purple" fontSize="xs">
                   工具调用 ({toolCalls.length})
                 </Badge>
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="gray.400">
                   查看工具参数与结果
                 </Text>
               </HStack>
@@ -698,10 +715,10 @@ function ToolCallsDisclosure({ toolCalls }: { toolCalls: ToolCall[] }) {
                   <Box
                     key={index}
                     p={3}
-                    bg="purple.50"
+                    bg="gray.800"
                     borderRadius="md"
                     border="1px solid"
-                    borderColor="purple.200"
+                    borderColor="whiteAlpha.200"
                   >
                     <ToolCallDisplay toolCall={toolCall} index={index} />
                   </Box>
@@ -732,7 +749,7 @@ function ChatMessageBubble({
   return (
     <Box
       alignSelf={isUser ? "flex-end" : "flex-start"}
-      maxW="85%"
+      maxW="100%"
       w={
         message.graphData ||
         (!isUser && (message.agentContext || message.toolCalls?.length))

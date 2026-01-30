@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useMemo, useState, useRef } from "react";
+import { useEffect, useCallback, useMemo, useState, useRef, forwardRef, useImperativeHandle } from "react";
 import {
   Box,
   Text,
@@ -85,9 +85,16 @@ interface ContextGraphViewProps {
   selectedNodeId?: string;
   height?: string;
   showLegend?: boolean;
+  /** 用于 next/dynamic 时拿到 zoom 控制，传 useRef 即可 */
+  innerRef?: React.RefObject<ContextGraphViewRef | null>;
 }
 
-export function ContextGraphView({
+export interface ContextGraphViewRef {
+  zoomIn: () => void;
+  zoomOut: () => void;
+}
+
+export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphViewProps>(function ContextGraphView({
   graphData,
   onNodeClick,
   onGraphDataChange,
@@ -96,7 +103,8 @@ export function ContextGraphView({
   selectedNodeId,
   height = "100%",
   showLegend = true,
-}: ContextGraphViewProps) {
+  innerRef,
+}, ref) {
   const [selectedElement, setSelectedElement] =
     useState<SelectedElement | null>(null);
   const [internalSelectedNodeId, setInternalSelectedNodeId] = useState<
@@ -109,6 +117,27 @@ export function ContextGraphView({
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(
     new Set(),
   );
+  const nvlRef = useRef<any>(null);
+
+  const zoomApi = useMemo(
+    () => ({
+      zoomIn: () => {
+        const s = nvlRef.current?.getScale?.();
+        if (s != null && typeof nvlRef.current?.setZoom === "function") {
+          nvlRef.current.setZoom(Math.min(s * 1.2, 5));
+        }
+      },
+      zoomOut: () => {
+        const s = nvlRef.current?.getScale?.();
+        if (s != null && typeof nvlRef.current?.setZoom === "function") {
+          nvlRef.current.setZoom(Math.max(s / 1.2, 0.1));
+        }
+      },
+    }),
+    [],
+  );
+  useImperativeHandle(ref, () => zoomApi, [zoomApi]);
+  useImperativeHandle(innerRef, () => zoomApi, [zoomApi]);
 
   // Track internal graph data for expansions
   const [internalGraphData, setInternalGraphData] = useState<GraphData | null>(
@@ -347,67 +376,73 @@ export function ContextGraphView({
     );
   }
 
+  const LEGEND_WIDTH = 200;
+
   return (
     <Box h={height} position="relative">
-      {/* Legend */}
-      {showLegend && (
-        <Flex
-          position="absolute"
-          top={2}
-          left={2}
-          zIndex={10}
-          bg="bg.surface"
-          borderRadius="md"
-          p={2}
-          gap={2}
-          flexWrap="wrap"
-          maxW="200px"
-          boxShadow="sm"
-          borderWidth="1px"
-          borderColor="border.default"
-        >
-          {Object.entries(NODE_COLORS)
-            .slice(0, 6)
-            .map(([label, color]) => (
-              <Badge
-                key={label}
-                size="sm"
-                style={{ backgroundColor: color, color: "white" }}
-              >
-                {label}
-              </Badge>
-            ))}
-        </Flex>
-      )}
+      {/* 左上侧：Legend + Properties Panel 同宽、紧挨 */}
+      <Flex
+        position="absolute"
+        top={2}
+        left={0}
+        zIndex={10}
+        direction="column"
+        gap={0}
+        w={LEGEND_WIDTH}
+      >
+        {/* Legend（节点类型） */}
+        {showLegend && (
+          <Flex
+            bg="bg.surface"
+            borderRadius="md"
+            p={2}
+            gap={2}
+            flexWrap="wrap"
+            boxShadow="sm"
+            borderWidth="1px"
+            borderColor="border.default"
+          >
+            {Object.entries(NODE_COLORS)
+              .slice(0, 6)
+              .map(([label, color]) => (
+                <Badge
+                  key={label}
+                  size="sm"
+                  style={{ backgroundColor: color, color: "white" }}
+                >
+                  {label}
+                </Badge>
+              ))}
+          </Flex>
+        )}
 
-      {/* Properties Panel */}
-      {selectedElement && (
-        <Box
-          position="absolute"
-          top={2}
-          right={2}
-          zIndex={10}
-          bg="bg.surface"
-          borderRadius="md"
-          p={3}
-          maxW="280px"
-          maxH="400px"
-          overflow="auto"
-          boxShadow="md"
-          borderWidth="1px"
-          borderColor="border.default"
-        >
+        {/* Properties Panel - 与 Legend 同宽，紧挨其下方 */}
+        {selectedElement && (
+          <Box
+            mt={0}
+            bg="gray.800"
+            borderRadius="md"
+            p={3}
+            w={LEGEND_WIDTH}
+            maxH="400px"
+            overflow="auto"
+            boxShadow="md"
+            borderWidth="1px"
+            borderColor="whiteAlpha.200"
+            borderTopLeftRadius={showLegend ? 0 : "md"}
+            borderTopRightRadius={showLegend ? 0 : "md"}
+          >
           <Flex justify="space-between" align="center" mb={2}>
-            <Heading size="sm">
+            <Heading size="sm" color="gray.100">
               {selectedElement.type === "node" ? "节点" : "关系"} 属性
             </Heading>
-            <CloseButton size="sm" onClick={handleClosePanel} />
+            <CloseButton size="sm" onClick={handleClosePanel} color="gray.400" _hover={{ color: "gray.200" }} />
           </Flex>
 
           {selectedElement.type === "node" && (
             <VStack align="stretch" gap={2}>
               <HStack>
-                <Text fontSize="xs" fontWeight="bold" color="gray.500">
+                <Text fontSize="xs" fontWeight="bold" color="gray.400">
                   标签：
                 </Text>
                 <Flex gap={1} flexWrap="wrap">
@@ -426,7 +461,7 @@ export function ContextGraphView({
                 </Flex>
               </HStack>
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>
+                <Text fontSize="xs" fontWeight="bold" color="gray.400" mb={1}>
                   属性：
                 </Text>
                 <VStack align="stretch" gap={1}>
@@ -435,16 +470,18 @@ export function ContextGraphView({
                   ).map(([key, value]) => (
                     <Box
                       key={key}
-                      bg="bg.subtle"
-                      p={1}
+                      bg="gray.800"
+                      p={2}
                       borderRadius="sm"
                       fontSize="xs"
+                      borderWidth="1px"
+                      borderColor="whiteAlpha.100"
                     >
-                      <Text fontWeight="medium" color="gray.600">
+                      <Text fontWeight="semibold" color="cyan.300" mb={0.5}>
                         {key}:
                       </Text>
                       <Text
-                        color="gray.800"
+                        color="gray.200"
                         wordBreak="break-word"
                         whiteSpace="pre-wrap"
                       >
@@ -462,25 +499,25 @@ export function ContextGraphView({
           {selectedElement.type === "relationship" && (
             <VStack align="stretch" gap={2}>
               <HStack>
-<Text fontSize="xs" fontWeight="bold" color="gray.500">
-                类型：
+                <Text fontSize="xs" fontWeight="bold" color="gray.400">
+                  类型：
                 </Text>
                 <Badge size="sm" colorPalette="gray">
                   {(selectedElement.data as GraphRelationship).type}
                 </Badge>
               </HStack>
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color="gray.500">
+                <Text fontSize="xs" fontWeight="bold" color="gray.400">
                   从：{" "}
-                  <Text as="span" fontWeight="normal">
+                  <Text as="span" fontWeight="normal" color="gray.200">
                     {(selectedElement.data as GraphRelationship).startNodeId}
                   </Text>
                 </Text>
               </Box>
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color="gray.500">
+                <Text fontSize="xs" fontWeight="bold" color="gray.400">
                   To:{" "}
-                  <Text as="span" fontWeight="normal">
+                  <Text as="span" fontWeight="normal" color="gray.200">
                     {(selectedElement.data as GraphRelationship).endNodeId}
                   </Text>
                 </Text>
@@ -489,7 +526,7 @@ export function ContextGraphView({
                 (selectedElement.data as GraphRelationship).properties,
               ).length > 0 && (
                 <Box>
-                  <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>
+                  <Text fontSize="xs" fontWeight="bold" color="gray.400" mb={1}>
                     属性：
                   </Text>
                   <VStack align="stretch" gap={1}>
@@ -498,15 +535,17 @@ export function ContextGraphView({
                     ).map(([key, value]) => (
                       <Box
                         key={key}
-                        bg="bg.subtle"
-                        p={1}
+                        bg="gray.800"
+                        p={2}
                         borderRadius="sm"
                         fontSize="xs"
+                        borderWidth="1px"
+                        borderColor="whiteAlpha.100"
                       >
-                        <Text fontWeight="medium" color="gray.600">
+                        <Text fontWeight="semibold" color="cyan.300" mb={0.5}>
                           {key}:
                         </Text>
-                        <Text color="gray.800" wordBreak="break-word">
+                        <Text color="gray.200" wordBreak="break-word">
                           {typeof value === "object"
                             ? JSON.stringify(value, null, 2)
                             : String(value)}
@@ -520,26 +559,7 @@ export function ContextGraphView({
           )}
         </Box>
       )}
-
-      {/* Instructions */}
-      <Box
-        position="absolute"
-        bottom={2}
-        left={2}
-        zIndex={10}
-        bg="bg.surface"
-        borderRadius="md"
-        px={2}
-        py={1}
-        boxShadow="sm"
-        borderWidth="1px"
-        borderColor="border.default"
-        opacity={0.8}
-      >
-        <Text fontSize="xs" color="gray.500">
-          滚轮缩放 | 拖拽画布平移 | 拖拽节点移动 | 点击查看 | 双击展开
-        </Text>
-      </Box>
+      </Flex>
 
       {/* Loading indicator for expansion */}
       {isExpanding && (
@@ -566,6 +586,7 @@ export function ContextGraphView({
       {/* Graph Container */}
       <Box h="100%" w="100%">
         <NvlGraph
+          nvlRef={nvlRef}
           nodes={nvlData.nodes}
           relationships={nvlData.relationships}
           onNodeClick={handleNodeClick}
@@ -576,10 +597,13 @@ export function ContextGraphView({
       </Box>
     </Box>
   );
-}
+});
+
+ContextGraphView.displayName = "ContextGraphView";
 
 // Separate component for NVL to handle dynamic import properly
 function NvlGraph({
+  nvlRef: nvlRefProp,
   nodes,
   relationships,
   onNodeClick,
@@ -587,6 +611,7 @@ function NvlGraph({
   onRelationshipClick,
   onCanvasClick,
 }: {
+  nvlRef?: React.MutableRefObject<any>;
   nodes: NvlNode[];
   relationships: NvlRelationship[];
   onNodeClick: (node: NvlNode) => void;
@@ -597,7 +622,8 @@ function NvlGraph({
   const [NvlComponent, setNvlComponent] =
     useState<React.ComponentType<any> | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const nvlRef = useRef<any>(null);
+  const internalNvlRef = useRef<any>(null);
+  const nvlRef = nvlRefProp ?? internalNvlRef;
 
   useEffect(() => {
     import("@neo4j-nvl/react").then((mod) => {

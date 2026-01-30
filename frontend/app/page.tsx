@@ -1,21 +1,19 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import {
-  Box,
-  Flex,
-  Heading,
-  Text,
-  Container,
-  Grid,
-  GridItem,
-} from "@chakra-ui/react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Box, Flex, Heading, IconButton, Text } from "@chakra-ui/react";
+import { LuPlus, LuMinus, LuChartBar, LuPanelRightClose, LuMessageCircle } from "react-icons/lu";
 import dynamic from "next/dynamic";
-import { ChatInterface } from "@/components/ChatInterface";
+import { FloatingAIAssistant } from "@/components/FloatingAIAssistant";
 import { DecisionTracePanel } from "@/components/DecisionTracePanel";
-import { getGraphData, type Decision, type GraphData, type GraphNode, type ChatMessage } from "@/lib/api";
+import {
+  getGraphData,
+  type Decision,
+  type GraphData,
+  type GraphNode,
+  type ChatMessage,
+} from "@/lib/api";
 
-// Helper to convert a GraphNode to a Decision object
 function graphNodeToDecision(node: GraphNode): Decision {
   const props = node.properties;
   return {
@@ -32,12 +30,15 @@ function graphNodeToDecision(node: GraphNode): Decision {
   };
 }
 
-// Dynamic import for NVL to avoid SSR issues
 const ContextGraphView = dynamic(
   () =>
     import("@/components/ContextGraphView").then((mod) => mod.ContextGraphView),
   { ssr: false },
 );
+
+type ContextGraphViewRef = { zoomIn: () => void; zoomOut: () => void };
+
+const DRAWER_WIDTH = 380;
 
 export default function Home() {
   const [selectedDecision, setSelectedDecision] = useState<Decision | null>(
@@ -45,11 +46,13 @@ export default function Home() {
   );
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [graphDecisions, setGraphDecisions] = useState<Decision[]>([]);
-  const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>(
-    [],
-  );
+  const [conversationHistory, setConversationHistory] = useState<
+    ChatMessage[]
+  >([]);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const graphRef = useRef<ContextGraphViewRef | null>(null);
 
-  // 页面加载时预拉取图数据，limit=0 表示不限制条数（全部加载）
   useEffect(() => {
     getGraphData(undefined, 2, undefined, 0)
       .then(setGraphData)
@@ -58,229 +61,233 @@ export default function Home() {
 
   const handleDecisionSelect = useCallback((decision: Decision) => {
     setSelectedDecision(decision);
+    setDrawerOpen(true);
   }, []);
 
   const handleGraphUpdate = useCallback((data: GraphData) => {
     setGraphData(data);
   }, []);
 
-  const handleNodeClick = useCallback((nodeId: string, labels: string[]) => {
-    console.log("Node clicked:", nodeId, labels);
-  }, []);
-
-  // Handle when decision nodes in the graph change
   const handleDecisionNodesChange = useCallback(
     (decisionNodes: GraphNode[]) => {
-      const decisions = decisionNodes.map(graphNodeToDecision);
-      setGraphDecisions(decisions);
+      setGraphDecisions(decisionNodes.map(graphNodeToDecision));
     },
     [],
   );
 
-  // Handle when a decision node is clicked in the graph
   const handleDecisionNodeClick = useCallback((node: GraphNode) => {
-    const decision = graphNodeToDecision(node);
-    setSelectedDecision(decision);
+    setSelectedDecision(graphNodeToDecision(node));
+    setDrawerOpen(true);
   }, []);
 
   return (
     <Box
       h="100vh"
       minH={0}
-      bg="bg.canvas"
+      w="100vw"
+      overflow="hidden"
+      bg="#0a0e17"
       display="flex"
       flexDirection="column"
-      overflow="hidden"
     >
-      {/* Header */}
-      <Box
-        as="header"
+      {/* 整条顶栏：固定高度，图谱区域在其下方 */}
+      <Flex
         flexShrink={0}
-        bg="bg.surface"
+        w="100%"
+        h={14}
+        align="center"
+        px={4}
+        bg="blackAlpha.400"
         borderBottomWidth="1px"
-        borderColor="border.default"
-        py={{ base: 2, md: 3 }}
-        px={{ base: 3, md: 4 }}
+        borderColor="whiteAlpha.100"
+        backdropFilter="blur(8px)"
       >
-        <Container maxW="100%" px={{ base: 3, md: 4 }}>
-          <Flex justify="space-between" align="center">
-            <Flex align="center" gap={3}>
-              {/* Neo4j Logo */}
-              <a
-                href="https://neo4j.com"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Box
-                  width={{ base: "32px", md: "40px" }}
-                  height={{ base: "32px", md: "40px" }}
-                  flexShrink={0}
-                >
-                  <svg viewBox="0 0 100 100" width="100%" height="100%">
-                    <circle cx="50" cy="50" r="48" fill="#018BFF" />
-                    <g fill="white">
-                      <circle cx="50" cy="30" r="8" />
-                      <circle cx="30" cy="65" r="8" />
-                      <circle cx="70" cy="65" r="8" />
-                      <line
-                        x1="50"
-                        y1="38"
-                        x2="33"
-                        y2="58"
-                        stroke="white"
-                        strokeWidth="3"
-                      />
-                      <line
-                        x1="50"
-                        y1="38"
-                        x2="67"
-                        y2="58"
-                        stroke="white"
-                        strokeWidth="3"
-                      />
-                      <line
-                        x1="38"
-                        y1="65"
-                        x2="62"
-                        y2="65"
-                        stroke="white"
-                        strokeWidth="3"
-                      />
-                    </g>
-                  </svg>
-                </Box>
-              </a>
-              <Box>
-                <Heading size={{ base: "md", md: "lg" }} color="brand.600">
-                  本体洞察分析
-                </Heading>
-                <Text
-                  color="gray.500"
-                  fontSize="sm"
-                  display={{ base: "none", md: "block" }}
-                >
-                  基于本体的智能决策分析
-                </Text>
-              </Box>
-            </Flex>
-
-          </Flex>
-        </Container>
-      </Box>
-
-      {/* Main Content - 铺满剩余视口 */}
-      <Box flex={1} minH={0} display="flex" flexDirection="column" w="100%" overflow="hidden">
-        <Box flex={1} minH={0} display="flex" flexDirection="column" w="100%" px={{ base: 2, md: 3 }}>
-          <Grid
-            templateColumns={{ base: "1fr", lg: "1fr 1fr", xl: "1fr 1.5fr 1fr" }}
-            gap={{ base: 2, md: 3 }}
-            h="100%"
-            minH={0}
+        <Flex align="center" gap={3}>
+          <Box
+            w={8}
+            h={8}
+            flexShrink={0}
+            borderRadius="md"
+            bg="linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%)"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
           >
-          {/* Chat Panel */}
-          <GridItem overflow="hidden" minH={0}>
-            <Box
-              bg="bg.surface"
-              borderRadius="lg"
-              borderWidth="1px"
-              borderColor="border.default"
-              h="100%"
-              display="flex"
-              flexDirection="column"
-              overflow="hidden"
-            >
-              <Box
-                p={4}
-                borderBottomWidth="1px"
-                borderColor="border.default"
-                flexShrink={0}
-              >
-                <Heading size="md">AI助手</Heading>
-                <Text fontSize="sm" color="gray.500">
-                  通过对话探查本体关系
-                </Text>
-              </Box>
-              <Box flex="1" minH={0} overflow="hidden">
-                <ChatInterface
-                  conversationHistory={conversationHistory}
-                  onConversationUpdate={setConversationHistory}
-                  onDecisionSelect={handleDecisionSelect}
-                  onGraphUpdate={handleGraphUpdate}
-                />
-              </Box>
-            </Box>
-          </GridItem>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+          </Box>
+          <Heading size="sm" color="white" fontWeight="600">
+            本体洞察
+          </Heading>
+          <Text fontSize="xs" color="gray.400">
+            知识图谱分析看板
+          </Text>
+        </Flex>
+      </Flex>
 
-          {/* Graph Visualization - Hidden on mobile */}
-          <GridItem display={{ base: "none", lg: "block" }} overflow="hidden" minH={0}>
-            <Box
-              bg="bg.surface"
-              borderRadius="lg"
-              borderWidth="1px"
-              borderColor="border.default"
-              h="100%"
-              display="flex"
-              flexDirection="column"
-              overflow="hidden"
-            >
-              <Box
-                p={4}
-                borderBottomWidth="1px"
-                borderColor="border.default"
-                flexShrink={0}
-              >
-                <Heading size="md">图谱可视化</Heading>
-                <Text fontSize="sm" color="gray.500">
-                  本体实体、决策与因果关系可视化
-                </Text>
-              </Box>
-              <Box flex="1" minH={0}>
-                <ContextGraphView
-                  graphData={graphData}
-                  onNodeClick={handleNodeClick}
-                  onDecisionNodesChange={handleDecisionNodesChange}
-                  onDecisionNodeClick={handleDecisionNodeClick}
-                  selectedNodeId={selectedDecision?.id}
-                />
-              </Box>
-            </Box>
-          </GridItem>
+      {/* 顶栏下方：图谱 | 决策追溯（AI 智能助手悬浮，紧挨决策追溯） */}
+      <Flex flex={1} minH={0} w="100%" direction="row">
+        {/* 图谱区域（占满剩余宽度） */}
+        <Box flex={1} minH={0} minW={0} position="relative" overflow="hidden">
+          <Box position="absolute" inset={0} zIndex={0}>
+            <ContextGraphView
+              innerRef={graphRef}
+              graphData={graphData}
+              onNodeClick={() => {}}
+              onDecisionNodesChange={handleDecisionNodesChange}
+              onDecisionNodeClick={handleDecisionNodeClick}
+              selectedNodeId={selectedDecision?.id}
+              height="100%"
+              showLegend={true}
+            />
+          </Box>
 
-          {/* Decision Trace Panel */}
-          <GridItem display={{ base: "none", xl: "block" }} overflow="hidden" minH={0}>
-            <Box
-              bg="bg.surface"
-              borderRadius="lg"
+          {/* 左下角 - 缩放控制（圆形按钮） */}
+          <Flex
+            position="absolute"
+            bottom={6}
+            left={6}
+            zIndex={10}
+            gap={2}
+            align="center"
+            p={1}
+            borderRadius="full"
+            bg="blackAlpha.400"
+            borderWidth="1px"
+            borderColor="whiteAlpha.200"
+            backdropFilter="blur(8px)"
+          >
+            <IconButton
+              aria-label="缩小"
+              size="lg"
+              borderRadius="full"
+              bg="whiteAlpha.100"
+              color="white"
               borderWidth="1px"
-              borderColor="border.default"
-              h="100%"
-              display="flex"
-              flexDirection="column"
-              overflow="hidden"
+              borderColor="whiteAlpha.200"
+              _hover={{ bg: "whiteAlpha.200" }}
+              onClick={() => graphRef.current?.zoomOut()}
             >
-              <Box
-                p={4}
-                borderBottomWidth="1px"
-                borderColor="border.default"
-                flexShrink={0}
+              <LuMinus />
+            </IconButton>
+            <IconButton
+              aria-label="放大"
+              size="lg"
+              borderRadius="full"
+              bg="whiteAlpha.100"
+              color="white"
+              borderWidth="1px"
+              borderColor="whiteAlpha.200"
+              _hover={{ bg: "whiteAlpha.200" }}
+              onClick={() => graphRef.current?.zoomIn()}
+            >
+              <LuPlus />
+            </IconButton>
+          </Flex>
+
+          {/* 右下角 - 打开 AI 助手 / 打开决策追溯 */}
+          <Flex
+            position="absolute"
+            bottom={6}
+            right={6}
+            zIndex={10}
+            gap={3}
+            align="center"
+          >
+            {!aiAssistantOpen && (
+              <IconButton
+                aria-label="打开 AI 智能助手"
+                size="xl"
+                w={12}
+                h={12}
+                borderRadius="xl"
+                bg="green.600"
+                color="white"
+                borderWidth="1px"
+                borderColor="green.500"
+                _hover={{ bg: "green.500" }}
+                onClick={() => setAiAssistantOpen(true)}
               >
-                <Heading size="md">决策追溯</Heading>
-                <Text fontSize="sm" color="gray.500">
-                  查看推理、先例与因果链
-                </Text>
-              </Box>
-              <Box flex="1" minH={0} overflow="auto">
-                <DecisionTracePanel
-                  decision={selectedDecision}
-                  onDecisionSelect={handleDecisionSelect}
-                  graphDecisions={graphDecisions}
-                />
-              </Box>
-            </Box>
-          </GridItem>
-          </Grid>
+                <LuMessageCircle />
+              </IconButton>
+            )}
+            <IconButton
+              aria-label={drawerOpen ? "关闭决策追溯" : "打开决策追溯"}
+              size="xl"
+              w={12}
+              h={12}
+              borderRadius="xl"
+              bg="orange.500"
+              color="white"
+              borderWidth="1px"
+              borderColor="orange.400"
+              _hover={{ bg: "orange.400" }}
+              onClick={() => setDrawerOpen((o) => !o)}
+            >
+              <LuChartBar />
+            </IconButton>
+          </Flex>
         </Box>
-      </Box>
+
+        {/* 决策追溯 - 布局内右侧栏 */}
+        <Box
+          w={drawerOpen ? DRAWER_WIDTH : 0}
+          flexShrink={0}
+          overflow="hidden"
+          transition="width 0.25s ease-out"
+          display="flex"
+          flexDirection="column"
+          bg="blackAlpha.700"
+          backdropFilter="blur(12px)"
+          borderLeftWidth={drawerOpen ? "1px" : 0}
+          borderColor="whiteAlpha.200"
+        >
+          <Flex
+            align="center"
+            justify="space-between"
+            px={4}
+            py={3}
+            borderBottomWidth="1px"
+            borderColor="whiteAlpha.100"
+            flexShrink={0}
+          >
+            <Heading size="sm" color="gray.100">
+              决策追溯
+            </Heading>
+            <IconButton
+              aria-label="关闭"
+              size="sm"
+              variant="ghost"
+              colorPalette="gray"
+              color="gray.400"
+              _hover={{ color: "cyan.400" }}
+              onClick={() => setDrawerOpen(false)}
+            >
+              <LuPanelRightClose />
+            </IconButton>
+          </Flex>
+          <Box flex={1} minH={0} overflow="auto">
+            <DecisionTracePanel
+              decision={selectedDecision}
+              onDecisionSelect={handleDecisionSelect}
+              graphDecisions={graphDecisions}
+            />
+          </Box>
+        </Box>
+      </Flex>
+
+      {/* AI 智能助手 - 悬浮，展开位置固定，紧挨决策追溯（在决策追溯左侧） */}
+      <FloatingAIAssistant
+        open={aiAssistantOpen}
+        onOpenChange={setAiAssistantOpen}
+        conversationHistory={conversationHistory}
+        onConversationUpdate={setConversationHistory}
+        onDecisionSelect={handleDecisionSelect}
+        onGraphUpdate={handleGraphUpdate}
+        decisionTraceOpen={drawerOpen}
+        decisionTraceWidth={DRAWER_WIDTH}
+      />
     </Box>
   );
 }
