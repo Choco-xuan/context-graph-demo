@@ -49,7 +49,7 @@ export default function Home() {
   const [conversationHistory, setConversationHistory] = useState<
     ChatMessage[]
   >([]);
-  const [aiAssistantOpen, setAiAssistantOpen] = useState(true);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const graphRef = useRef<ContextGraphViewRef | null>(null);
 
@@ -121,7 +121,7 @@ export default function Home() {
             本体洞察
           </Heading>
           <Text fontSize="xs" color="gray.400">
-            知识图谱分析看板
+            图谱分析看板
           </Text>
         </Flex>
       </Flex>

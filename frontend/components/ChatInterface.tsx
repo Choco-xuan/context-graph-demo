@@ -377,31 +377,25 @@ export function ChatInterface({
               </Text>
               <VStack align="start" mt={3} gap={1}>
                 <SuggestionChip
-                  text="是否批准 Jessica Norris 的信用额度提升？她申请将额度提高 2.5 万美元。"
+                  text="当前图谱中有哪些核心节点？"
                   onClick={() =>
-                    setInput(
-                      "是否批准 Jessica Norris 的信用额度提升？她申请将额度提高 2.5 万美元。",
-                    )
+                    setInput("当前图谱中有哪些核心节点？")
                   }
                 />
                 <SuggestionChip
-                  text="搜索客户 John Walsh"
-                  onClick={() => setInput("搜索客户 John Walsh")}
+                  text="如何搜索客户信息？"
+                  onClick={() => setInput("如何搜索客户信息？")}
                 />
                 <SuggestionChip
-                  text="客户要进行 1.5 万美元的电汇。适用哪些政策？有无类似历史决策？"
+                  text="大额交易需要遵循哪些政策？"
                   onClick={() =>
-                    setInput(
-                      "客户要进行 1.5 万美元的电汇。适用哪些政策？有无类似历史决策？",
-                    )
+                    setInput("大额交易需要遵循哪些政策？")
                   }
                 />
                 <SuggestionChip
-                  text="需要为 Katherine Miller 提高交易限额。查找类似例外先例。"
+                  text="如何查找类似的决策先例？"
                   onClick={() =>
-                    setInput(
-                      "需要为 Katherine Miller 提高交易限额。查找类似例外先例。",
-                    )
+                    setInput("如何查找类似的决策先例？")
                   }
                 />
               </VStack>

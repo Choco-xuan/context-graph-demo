@@ -370,7 +370,7 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
           暂无图数据可展示。
         </Text>
         <Text color="gray.400" fontSize="sm" textAlign="center">
-          使用 AI 助手搜索客户或决策，即可可视化语境图。
+          使用 AI 助手搜索相关本体对象，即可可视化本体关系图谱。
         </Text>
       </Flex>
     );
