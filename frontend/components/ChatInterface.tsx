@@ -53,7 +53,10 @@ function extractEntityIds(
 ): string[] {
   const ids: string[] = [];
 
-  // Extract from input parameters
+  // Extract from input parameters (generic + legacy)
+  if (input.node_id) ids.push(String(input.node_id));
+  if (input.start_id) ids.push(String(input.start_id));
+  if (input.end_id) ids.push(String(input.end_id));
   if (input.customer_id) ids.push(String(input.customer_id));
   if (input.account_id) ids.push(String(input.account_id));
   if (input.decision_id) ids.push(String(input.decision_id));
@@ -96,6 +99,14 @@ function extractEntityIds(
     if (result.causal_chain && typeof result.causal_chain === "object") {
       const chain = result.causal_chain as Record<string, unknown>;
       if (chain.decision_id) ids.push(String(chain.decision_id));
+    }
+
+    // Handle graph_data.nodes (generic tools)
+    const gd = result.graph_data as Record<string, unknown> | undefined;
+    if (gd && Array.isArray(gd.nodes)) {
+      (gd.nodes as Record<string, unknown>[]).slice(0, 3).forEach((n) => {
+        if (n.id) ids.push(String(n.id));
+      });
     }
   }
 
@@ -373,7 +384,7 @@ export function ChatInterface({
                 color="gray.600"
                 _dark={{ color: "gray.400" }}
               >
-                我可以帮您搜索客户、分析决策、查找类似先例并追溯因果关系。试试提问：
+                我可以帮您探索图谱、搜索节点、分析关系模式。试试提问：
               </Text>
               <VStack align="start" mt={3} gap={1}>
                 <SuggestionChip

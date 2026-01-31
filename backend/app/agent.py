@@ -11,8 +11,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, create_sdk_mcp
 
 from .config import config
 from .context_graph_client import context_graph_client
-from .gds_client import gds_client
-from .vector_client import vector_client
+from .schema_service import SchemaService
 
 
 def slim_properties(props: dict) -> dict:
@@ -33,85 +32,52 @@ def slim_properties(props: dict) -> dict:
     return slim
 
 
-def get_graph_data_for_entity(entity_id: str, depth: int = 2, limit: int = 30) -> dict:
-    """Get graph visualization data centered on an entity."""
-    try:
-        graph_data = context_graph_client.get_graph_data(
-            center_node_id=entity_id, depth=depth, limit=limit
-        )
-        # Build nodes list first
-        nodes = [
-            {
-                "id": node.id,
-                "labels": node.labels,
-                "properties": slim_properties(node.properties),
-            }
-            for node in graph_data.nodes
-        ]
-
-        # Create set of node IDs for filtering relationships
-        node_ids = {node["id"] for node in nodes}
-
-        # Only include relationships where both nodes exist
-        relationships = [
-            {
-                "id": rel.id,
-                "type": rel.type,
-                "startNodeId": rel.start_node_id,
-                "endNodeId": rel.end_node_id,
-                "properties": slim_properties(rel.properties),
-            }
-            for rel in graph_data.relationships
-            if rel.start_node_id in node_ids and rel.end_node_id in node_ids
-        ]
-
-        return {
-            "nodes": nodes,
-            "relationships": relationships,
-        }
-    except Exception as e:
-        print(f"Error getting graph data for entity {entity_id}: {e}")
+def graph_data_to_dict(graph_data) -> dict:
+    """Convert GraphData to frontend format."""
+    if not graph_data:
         return {"nodes": [], "relationships": []}
+    node_ids = {n.id for n in graph_data.nodes}
+    nodes = [
+        {"id": n.id, "labels": n.labels, "properties": slim_properties(n.properties)}
+        for n in graph_data.nodes
+    ]
+    relationships = [
+        {
+            "id": r.id,
+            "type": r.type,
+            "startNodeId": r.start_node_id,
+            "endNodeId": r.end_node_id,
+            "properties": slim_properties(r.properties),
+        }
+        for r in graph_data.relationships
+        if r.start_node_id in node_ids and r.end_node_id in node_ids
+    ]
+    return {"nodes": nodes, "relationships": relationships}
 
 
-# ============================================
-# SYSTEM PROMPT
-# ============================================
+def build_system_prompt() -> str:
+    """Build dynamic system prompt with schema summary."""
+    schema_summary = SchemaService.get_schema_summary()
+    return f"""You are an AI assistant with access to a knowledge graph.
 
-CONTEXT_GRAPH_SYSTEM_PROMPT = """You are an AI assistant for a financial institution with access to a Context Graph.
+## Graph Schema
+{schema_summary}
 
-The Context Graph stores decision traces - the reasoning, context, and causal relationships behind every significant decision made in the organization. This enables you to:
-
-1. **Find Precedents**: Search for similar past decisions to inform current recommendations
-2. **Trace Causality**: Understand how past decisions influenced subsequent outcomes
-3. **Record Decisions**: Create new decision traces with full reasoning context
-4. **Detect Patterns**: Identify fraud patterns and entity duplicates using graph structure
-
-## Key Concepts
-
-**Event Clock vs State Clock**:
-- Traditional systems store the "state clock" - what is true right now
-- The Context Graph stores the "event clock" - what happened, when, and with what reasoning
-
-**Decision Traces**:
-- Every significant decision is recorded with full reasoning
-- Risk factors, confidence scores, and applied policies are captured
-- Causal chains show how decisions influenced each other
+## Available Operations
+- **get_schema**: Get full schema (use when you need more detail than above)
+- **explore_nodes**: Explore a node and its neighbors by node_id
+- **search_nodes**: Search nodes by label and/or property (label, property, value optional)
+- **find_paths**: Find paths between two nodes
+- **analyze_patterns**: Get overview stats, degree distribution, or sample nodes
+- **execute_cypher**: Run custom Cypher for complex analysis (read-only)
 
 ## Guidelines
-
-When helping users:
-1. **Always search for precedents** before making recommendations
-2. **Explain your reasoning thoroughly** - this becomes part of the decision trace
-3. **Cite specific past decisions** when they inform your recommendation
-4. **Flag exceptions or escalations** that may be needed
-5. **Consider both structural and semantic similarity** when finding related cases
-
-You have access to tools that leverage both:
-- **Semantic similarity** (text embeddings) - for matching by meaning
-- **Structural similarity** (FastRP graph embeddings) - for matching by relationship patterns
-
-This combination provides insights that are impossible with traditional databases."""
+1. Use get_schema or the schema above to understand the data structure
+2. Use explore_nodes to investigate specific entities when you have a node ID
+3. Use search_nodes to find nodes by type or property
+4. Use execute_cypher for complex queries - generate Cypher based on the schema
+5. Always explain findings clearly to the user
+6. When returning graph_data, the frontend can visualize it"""
 
 
 # ============================================
@@ -119,371 +85,288 @@ This combination provides insights that are impossible with traditional database
 # ============================================
 
 
-def merge_graph_data(graphs: list[dict], max_nodes: int = 50, max_rels: int = 75) -> dict:
-    """Merge multiple graph data objects, removing duplicates and limiting size."""
-    all_nodes = {}
-    all_relationships = {}
-
-    for graph in graphs:
-        if not graph:
-            continue
-        for node in graph.get("nodes", []):
-            if len(all_nodes) < max_nodes:
-                all_nodes[node["id"]] = node
-        for rel in graph.get("relationships", []):
-            # Only include relationships where both nodes are in the graph
-            if rel.get("startNodeId") in all_nodes and rel.get("endNodeId") in all_nodes:
-                if len(all_relationships) < max_rels:
-                    all_relationships[rel["id"]] = rel
-
-    return {
-        "nodes": list(all_nodes.values()),
-        "relationships": list(all_relationships.values()),
-    }
-
-
 @tool(
-    "search_customer",
-    "Search for customers by name, email, or account number. Returns customer profiles with risk scores and related account counts.",
-    {"query": str, "limit": int},
+    "get_schema",
+    "Get the full graph database schema: node labels, relationship types, property keys, relationship patterns. Use to understand the data structure before querying.",
+    {},
 )
-async def search_customer(args: dict[str, Any]) -> dict[str, Any]:
-    """Search for customers in the context graph."""
+async def get_schema(args: dict[str, Any]) -> dict[str, Any]:
+    """Get the graph database schema."""
     try:
-        results = context_graph_client.search_customers(
-            query=args["query"], limit=args.get("limit", 10)
-        )
-        # Include graph data for top customers (1 hop from each)
-        graphs = []
-        for customer in results[:3]:  # Limit to first 3 customers
-            customer_id = customer.get("id")
-            if customer_id:
-                customer_graph = get_graph_data_for_entity(customer_id, depth=1)
-                graphs.append(customer_graph)
-
-        # Merge all graph data with size limits
-        graph_data = merge_graph_data(graphs) if graphs else {"nodes": [], "relationships": []}
-
-        response = {
-            "customers": results,
-            "graph_data": graph_data,
-        }
-        return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
+        schema = SchemaService.get_schema()
+        return {"content": [{"type": "text", "text": json.dumps(schema, indent=2, default=str)}]}
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"Error searching customers: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error getting schema: {str(e)}"}],
             "is_error": True,
         }
 
 
 @tool(
-    "get_customer_decisions",
-    "Get all decisions made about a specific customer, including approvals, rejections, escalations, and exceptions.",
-    {"customer_id": str, "decision_type": str, "limit": int},
+    "explore_nodes",
+    "Explore a node and its neighbors. Returns subgraph centered on the given node. Use node_id (UUID property or elementId).",
+    {"node_id": str, "depth": int, "limit": int},
 )
-async def get_customer_decisions(args: dict[str, Any]) -> dict[str, Any]:
-    """Get decisions about a customer."""
+async def explore_nodes(args: dict[str, Any]) -> dict[str, Any]:
+    """Explore nodes around a given node."""
     try:
-        results = context_graph_client.get_customer_decisions(
-            customer_id=args["customer_id"],
-            decision_type=args.get("decision_type"),
-            limit=args.get("limit", 20),
+        node_id = args["node_id"]
+        depth = args.get("depth", 2)
+        limit = args.get("limit", 50)
+        graph_data = context_graph_client.get_graph_data(
+            center_node_id=node_id, depth=depth, limit=limit
         )
-        # Include graph data centered on the customer
-        graph_data = get_graph_data_for_entity(args["customer_id"], depth=2)
-
+        gd = graph_data_to_dict(graph_data)
         response = {
-            "decisions": results,
-            "graph_data": graph_data,
+            "graph_data": gd,
+            "node_count": len(gd["nodes"]),
+            "relationship_count": len(gd["relationships"]),
         }
         return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"Error getting decisions: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error exploring nodes: {str(e)}"}],
             "is_error": True,
         }
 
 
 @tool(
-    "find_similar_decisions",
-    "Find structurally similar past decisions using FastRP graph embeddings. Returns decisions with similar patterns of entities, relationships, and outcomes.",
-    {"decision_id": str, "limit": int},
+    "search_nodes",
+    "Search for nodes by label and/or property. All params optional: label filters by node type, property+value filter by property (partial match). Returns matching nodes and their neighborhood as graph_data.",
+    {"label": str, "property": str, "value": str, "limit": int},
 )
-async def find_similar_decisions(args: dict[str, Any]) -> dict[str, Any]:
-    """Find similar decisions using FastRP embeddings."""
+async def search_nodes(args: dict[str, Any]) -> dict[str, Any]:
+    """Search nodes by label and property."""
     try:
-        results = gds_client.find_similar_decisions_knn(
-            decision_id=args["decision_id"], limit=args.get("limit", 5)
-        )
-        # Include graph data centered on the original decision
-        graph_data = get_graph_data_for_entity(args["decision_id"], depth=2)
+        label = args.get("label")
+        property_key = args.get("property")
+        value = args.get("value")
+        limit = args.get("limit", 20)
+        from .context_graph_client import convert_node_properties
 
-        response = {
-            "similar_decisions": results,
-            "graph_data": graph_data,
-        }
-        return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
-    except Exception as e:
-        return {
-            "content": [{"type": "text", "text": f"Error finding similar decisions: {str(e)}"}],
-            "is_error": True,
-        }
-
-
-@tool(
-    "find_precedents",
-    "Find precedent decisions that could inform the current decision. Uses both semantic similarity (meaning) and structural similarity (graph patterns).",
-    {"scenario": str, "category": str, "limit": int},
-)
-async def find_precedents(args: dict[str, Any]) -> dict[str, Any]:
-    """Find precedent decisions using hybrid search."""
-    try:
-        results = vector_client.find_precedents_hybrid(
-            scenario=args["scenario"], category=args.get("category"), limit=args.get("limit", 5)
-        )
-        # Include graph data for the first precedent found
-        graph_data = None
-        if results and len(results) > 0:
-            first_id = results[0].get("id") if isinstance(results[0], dict) else None
-            if first_id:
-                graph_data = get_graph_data_for_entity(first_id, depth=2)
-
-        response = {
-            "precedents": results,
-            "graph_data": graph_data,
-        }
-        return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
-    except Exception as e:
-        return {
-            "content": [{"type": "text", "text": f"Error finding precedents: {str(e)}"}],
-            "is_error": True,
-        }
-
-
-@tool(
-    "get_causal_chain",
-    "Trace the causal chain of a decision - what caused it and what it led to. Useful for understanding decision impact and history.",
-    {"decision_id": str, "direction": str, "depth": int},
-)
-async def get_causal_chain(args: dict[str, Any]) -> dict[str, Any]:
-    """Get the causal chain for a decision."""
-    try:
-        results = context_graph_client.get_causal_chain(
-            decision_id=args["decision_id"],
-            direction=args.get("direction", "both"),
-            depth=args.get("depth", 3),
-        )
-        # Include graph data centered on the decision
-        graph_data = get_graph_data_for_entity(args["decision_id"], depth=3)
-
-        response = {
-            "causal_chain": results,
-            "graph_data": graph_data,
-        }
-        return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
-    except Exception as e:
-        return {
-            "content": [{"type": "text", "text": f"Error getting causal chain: {str(e)}"}],
-            "is_error": True,
-        }
-
-
-@tool(
-    "record_decision",
-    "Record a new decision with full reasoning context. Creates a decision trace in the context graph that can be referenced by future decisions.",
-    {
-        "decision_type": str,
-        "category": str,
-        "reasoning": str,
-        "customer_id": str,
-        "account_id": str,
-        "risk_factors": list,
-        "precedent_ids": list,
-        "confidence_score": float,
-    },
-)
-async def record_decision(args: dict[str, Any]) -> dict[str, Any]:
-    """Record a new decision in the context graph."""
-    try:
-        # Generate embedding for the reasoning
-        reasoning_embedding = None
-        try:
-            reasoning_embedding = vector_client.generate_embedding(args["reasoning"])
-        except Exception:
-            pass  # Continue without embedding if it fails
-
-        decision_id = context_graph_client.record_decision(
-            decision_type=args["decision_type"],
-            category=args["category"],
-            reasoning=args["reasoning"],
-            customer_id=args.get("customer_id"),
-            account_id=args.get("account_id"),
-            risk_factors=args.get("risk_factors", []),
-            precedent_ids=args.get("precedent_ids", []),
-            confidence_score=args.get("confidence_score", 0.8),
-            reasoning_embedding=reasoning_embedding,
-        )
-
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": json.dumps(
+        with context_graph_client.driver.session(database=context_graph_client.database) as session:
+            label_clause = f":`{label}`" if label else ""
+            if property_key and value:
+                cypher = f"""
+                MATCH (n{label_clause})
+                WHERE n.`{property_key}` IS NOT NULL AND toString(n.`{property_key}`) CONTAINS $value
+                WITH n LIMIT $limit
+                OPTIONAL MATCH (n)-[r]-(m)
+                WITH collect(DISTINCT n) + collect(DISTINCT m) AS nodes,
+                     collect(DISTINCT r) AS rels
+                RETURN [x IN nodes WHERE x IS NOT NULL] AS nodes,
+                       [x IN rels WHERE x IS NOT NULL] AS rels
+                """
+            else:
+                cypher = f"""
+                MATCH (n{label_clause})
+                WITH n LIMIT $limit
+                OPTIONAL MATCH (n)-[r]-(m)
+                WITH collect(DISTINCT n) + collect(DISTINCT m) AS nodes,
+                     collect(DISTINCT r) AS rels
+                RETURN [x IN nodes WHERE x IS NOT NULL] AS nodes,
+                       [x IN rels WHERE x IS NOT NULL] AS rels
+                """
+            result = session.run(cypher, {"value": value if value else "", "limit": limit})
+            record = result.single()
+            if not record:
+                return {
+                    "content": [
                         {
-                            "success": True,
-                            "decision_id": decision_id,
-                            "message": f"Decision recorded successfully with ID {decision_id}",
-                        },
-                        indent=2,
-                    ),
+                            "type": "text",
+                            "text": json.dumps(
+                                {"graph_data": {"nodes": [], "relationships": []}},
+                                indent=2,
+                            ),
+                        }
+                    ]
                 }
-            ]
-        }
+            nodes = []
+            seen = set()
+            for node in record["nodes"] or []:
+                if node and node.element_id not in seen:
+                    seen.add(node.element_id)
+                    nodes.append(
+                        {
+                            "id": str(node.element_id),
+                            "labels": list(node.labels),
+                            "properties": slim_properties(convert_node_properties(dict(node))),
+                        }
+                    )
+            node_ids = {n["id"] for n in nodes}
+            relationships = []
+            rel_seen = set()
+            for rel in record["rels"] or []:
+                if rel and rel.element_id not in rel_seen:
+                    rel_seen.add(rel.element_id)
+                    if str(rel.start_node.element_id) in node_ids and str(rel.end_node.element_id) in node_ids:
+                        relationships.append(
+                            {
+                                "id": str(rel.element_id),
+                                "type": rel.type,
+                                "startNodeId": str(rel.start_node.element_id),
+                                "endNodeId": str(rel.end_node.element_id),
+                                "properties": slim_properties(dict(rel)),
+                            }
+                        )
+            gd = {"nodes": nodes, "relationships": relationships}
+            response = {"graph_data": gd, "node_count": len(nodes), "relationship_count": len(relationships)}
+            return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"Error recording decision: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error searching nodes: {str(e)}"}],
             "is_error": True,
         }
 
 
 @tool(
-    "detect_fraud_patterns",
-    "Analyze accounts or transactions for potential fraud patterns using graph structure analysis. Uses Node Similarity to compare against known fraud cases.",
-    {"account_id": str, "similarity_threshold": float},
+    "find_paths",
+    "Find paths between two nodes. Returns paths and the subgraph of nodes/relationships along those paths.",
+    {"start_id": str, "end_id": str, "max_depth": int},
 )
-async def detect_fraud_patterns(args: dict[str, Any]) -> dict[str, Any]:
-    """Detect fraud patterns using graph analysis."""
+async def find_paths(args: dict[str, Any]) -> dict[str, Any]:
+    """Find paths between two nodes."""
     try:
-        results = gds_client.detect_fraud_patterns(
-            account_id=args.get("account_id"),
-            similarity_threshold=args.get("similarity_threshold", 0.7),
-        )
-        return {"content": [{"type": "text", "text": json.dumps(results, indent=2, default=str)}]}
-    except Exception as e:
-        return {
-            "content": [{"type": "text", "text": f"Error detecting fraud patterns: {str(e)}"}],
-            "is_error": True,
-        }
+        start_id = args["start_id"]
+        end_id = args["end_id"]
+        max_depth = min(args.get("max_depth", 5), 10)
+        from .context_graph_client import convert_node_properties
 
-
-@tool(
-    "find_decision_community",
-    "Find decisions in the same community using Louvain community detection. Returns decisions that are structurally related through causal chains and precedent relationships.",
-    {"decision_id": str, "limit": int},
-)
-async def find_decision_community(args: dict[str, Any]) -> dict[str, Any]:
-    """Find decisions in the same community using Louvain."""
-    try:
-        decision_id = args["decision_id"]
-        limit = args.get("limit", 10)
-
-        # Community IDs are computed at app startup via Louvain
-        # Query decisions in the same community
-        with gds_client.driver.session(database=gds_client.database) as session:
+        with context_graph_client.driver.session(database=context_graph_client.database) as session:
             result = session.run(
                 """
-                MATCH (source:Decision {id: $decision_id})
-                MATCH (other:Decision)
-                WHERE other.community_id = source.community_id AND other.id <> source.id
-                RETURN other.id AS id,
-                       other.decision_type AS decision_type,
-                       other.category AS category,
-                       other.reasoning_summary AS reasoning_summary,
-                       other.decision_timestamp AS decision_timestamp,
-                       other.community_id AS community_id
-                ORDER BY other.decision_timestamp DESC
-                LIMIT $limit
+                MATCH (a), (b)
+                WHERE (a.id = $start_id OR elementId(a) = $start_id)
+                  AND (b.id = $end_id OR elementId(b) = $end_id)
+                MATCH path = shortestPath((a)-[*1..$max_depth]-(b))
+                WITH nodes(path) AS pathNodes, relationships(path) AS pathRels
+                UNWIND pathNodes AS n
+                WITH collect(DISTINCT n) AS nodes, pathRels
+                UNWIND pathRels AS r
+                WITH nodes, collect(DISTINCT r) AS rels
+                RETURN nodes, rels
+                LIMIT 1
                 """,
-                {"decision_id": decision_id, "limit": limit},
+                {"start_id": start_id, "end_id": end_id, "max_depth": max_depth},
             )
-            community_decisions = [dict(record) for record in result]
-
-        # Include graph data centered on the decision
-        graph_data = get_graph_data_for_entity(decision_id, depth=2)
-
-        response = {
-            "community_decisions": community_decisions,
-            "graph_data": graph_data,
-        }
-        return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
+            record = result.single()
+            if not record or not record["nodes"]:
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(
+                                {"paths_found": 0, "graph_data": {"nodes": [], "relationships": []}, "message": "No path found."},
+                                indent=2,
+                            ),
+                        }
+                    ]
+                }
+            nodes = []
+            seen = set()
+            for node in record["nodes"]:
+                if node and node.element_id not in seen:
+                    seen.add(node.element_id)
+                    nodes.append(
+                        {
+                            "id": str(node.element_id),
+                            "labels": list(node.labels),
+                            "properties": slim_properties(convert_node_properties(dict(node))),
+                        }
+                    )
+            node_ids = {n["id"] for n in nodes}
+            relationships = []
+            for rel in record["rels"] or []:
+                if rel and str(rel.start_node.element_id) in node_ids and str(rel.end_node.element_id) in node_ids:
+                    relationships.append(
+                        {
+                            "id": str(rel.element_id),
+                            "type": rel.type,
+                            "startNodeId": str(rel.start_node.element_id),
+                            "endNodeId": str(rel.end_node.element_id),
+                            "properties": slim_properties(dict(rel)),
+                        }
+                    )
+            gd = {"nodes": nodes, "relationships": relationships}
+            response = {"paths_found": 1, "path_length": len(record["rels"]) if record["rels"] else 0, "graph_data": gd}
+            return {"content": [{"type": "text", "text": json.dumps(response, indent=2, default=str)}]}
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"Error finding community: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error finding paths: {str(e)}"}],
             "is_error": True,
         }
 
 
 @tool(
-    "get_policy",
-    "Get the current policy rules for a specific category. Returns policy details including thresholds and requirements. If policy_name is provided, returns policies matching any words in the name.",
-    {"category": str, "policy_name": str},
+    "analyze_patterns",
+    "Analyze graph patterns. pattern_type: 'overview' (node/rel counts), 'degree' (degree distribution), 'sample' (sample nodes per label).",
+    {"pattern_type": str},
 )
-async def get_policy(args: dict[str, Any]) -> dict[str, Any]:
-    """Get policy information."""
+async def analyze_patterns(args: dict[str, Any]) -> dict[str, Any]:
+    """Analyze graph patterns."""
     try:
-        # Get all policies for the category
-        policies = context_graph_client.get_policies(category=args.get("category"))
-
-        if args.get("policy_name"):
-            # Extract meaningful words from the search query (skip common words)
-            stop_words = {"the", "a", "an", "for", "and", "or", "of", "in", "to", "with"}
-            search_words = [
-                word.lower()
-                for word in args["policy_name"].split()
-                if word.lower() not in stop_words and len(word) > 2
-            ]
-
-            # Score each policy by how many search words match
-            scored_policies = []
-            for policy in policies:
-                policy_name_lower = policy.get("name", "").lower()
-                # Count how many search words appear in the policy name
-                matches = sum(1 for word in search_words if word in policy_name_lower)
-                if matches > 0:
-                    scored_policies.append({"policy": policy, "relevance_score": matches})
-
-            # Sort by relevance score (highest first)
-            scored_policies.sort(key=lambda x: x["relevance_score"], reverse=True)
-
-            if scored_policies:
-                # Return all matching policies with relevance info
-                results = {
-                    "matching_policies": [
-                        {**sp["policy"], "relevance_score": sp["relevance_score"]}
-                        for sp in scored_policies
-                    ],
-                    "search_terms": search_words,
-                    "total_matches": len(scored_policies),
-                }
+        pattern_type = args.get("pattern_type", "overview")
+        with context_graph_client.driver.session(database=context_graph_client.database) as session:
+            if pattern_type == "overview":
+                result = session.run("""
+                    MATCH (n) WITH labels(n) AS lbls UNWIND lbls AS l WITH l, count(*) AS c
+                    RETURN collect({label: l, count: c}) AS node_counts
+                """)
+                nc = result.single()["node_counts"]
+                result = session.run("""
+                    MATCH ()-[r]->() WITH type(r) AS t, count(*) AS c
+                    RETURN collect({type: t, count: c}) AS rel_counts
+                """)
+                rc = result.single()["rel_counts"]
+                return {"content": [{"type": "text", "text": json.dumps({"node_counts": nc, "relationship_counts": rc}, indent=2, default=str)}]}
+            elif pattern_type == "degree":
+                result = session.run("""
+                    MATCH (n) WITH n, size((n)--()) AS degree
+                    WITH degree, count(n) AS count
+                    RETURN collect({degree: degree, count: count}) AS distribution
+                """)
+                dist = result.single()
+                return {"content": [{"type": "text", "text": json.dumps(dist, indent=2, default=str)}]}
+            elif pattern_type == "sample":
+                schema = SchemaService.get_schema()
+                labels = schema.get("node_labels", [])
+                samples = []
+                for label in labels[:10]:
+                    r = session.run(f"MATCH (n:`{label}`) RETURN n LIMIT 3")
+                    for rec in r:
+                        node = rec["n"]
+                        samples.append({"label": label, "id": str(node.element_id), "properties": slim_properties(dict(node))})
+                return {"content": [{"type": "text", "text": json.dumps({"samples_by_label": samples}, indent=2, default=str)}]}
             else:
-                # No matches found - return all policies in category as fallback
-                results = {
-                    "matching_policies": [],
-                    "search_terms": search_words,
-                    "total_matches": 0,
-                    "all_policies_in_category": policies,
-                    "note": f"No policies matched '{args['policy_name']}'. Showing all policies in category.",
+                return {
+                    "content": [{"type": "text", "text": json.dumps({"error": f"Unknown pattern_type: {pattern_type}. Use 'overview', 'degree', or 'sample'."})}],
+                    "is_error": True,
                 }
-        else:
-            results = policies
-
-        return {"content": [{"type": "text", "text": json.dumps(results, indent=2, default=str)}]}
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"Error getting policy: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error analyzing patterns: {str(e)}"}],
             "is_error": True,
         }
 
 
 @tool(
     "execute_cypher",
-    "Execute a read-only Cypher query against the context graph for custom analysis. Only SELECT/MATCH queries are allowed.",
-    {"cypher": str},
+    "Execute a read-only Cypher query. Use for complex analysis. Only MATCH/RETURN allowed. Parameters optional.",
+    {"cypher": str, "parameters": dict},
 )
 async def execute_cypher(args: dict[str, Any]) -> dict[str, Any]:
     """Execute a read-only Cypher query."""
     try:
-        results = context_graph_client.execute_cypher(cypher=args["cypher"])
+        raw_params = args.get("parameters")
+        params = {}
+        if isinstance(raw_params, dict):
+            params = raw_params
+        elif raw_params and isinstance(raw_params, list):
+            try:
+                params = dict(raw_params)
+            except (ValueError, TypeError):
+                params = {}
+        results = context_graph_client.execute_cypher(cypher=args["cypher"], parameters=params)
         return {"content": [{"type": "text", "text": json.dumps(results, indent=2, default=str)}]}
     except ValueError as e:
         return {
@@ -493,23 +376,6 @@ async def execute_cypher(args: dict[str, Any]) -> dict[str, Any]:
     except Exception as e:
         return {
             "content": [{"type": "text", "text": f"Error executing query: {str(e)}"}],
-            "is_error": True,
-        }
-
-
-@tool(
-    "get_schema",
-    "Get the graph database schema including node labels, relationship types, property keys, indexes, and constraints. Also returns counts for each node label and relationship type.",
-    {},
-)
-async def get_schema(args: dict[str, Any]) -> dict[str, Any]:
-    """Get the graph database schema."""
-    try:
-        schema = context_graph_client.get_schema()
-        return {"content": [{"type": "text", "text": json.dumps(schema, indent=2, default=str)}]}
-    except Exception as e:
-        return {
-            "content": [{"type": "text", "text": f"Error getting schema: {str(e)}"}],
             "is_error": True,
         }
 
@@ -525,17 +391,12 @@ def create_context_graph_server():
         name="context-graph",
         version="1.0.0",
         tools=[
-            search_customer,
-            get_customer_decisions,
-            find_similar_decisions,
-            find_precedents,
-            get_causal_chain,
-            record_decision,
-            detect_fraud_patterns,
-            find_decision_community,
-            get_policy,
-            execute_cypher,
             get_schema,
+            explore_nodes,
+            search_nodes,
+            find_paths,
+            analyze_patterns,
+            execute_cypher,
         ],
     )
 
@@ -553,20 +414,15 @@ def get_agent_options() -> ClaudeAgentOptions:
             os.environ["ANTHROPIC_API_KEY"] = config.anthropic.api_key
 
     return ClaudeAgentOptions(
-        system_prompt=CONTEXT_GRAPH_SYSTEM_PROMPT,
+        system_prompt=build_system_prompt(),
         mcp_servers={"graph": context_graph_server},
         allowed_tools=[
-            "mcp__graph__search_customer",
-            "mcp__graph__get_customer_decisions",
-            "mcp__graph__find_similar_decisions",
-            "mcp__graph__find_precedents",
-            "mcp__graph__get_causal_chain",
-            "mcp__graph__record_decision",
-            "mcp__graph__detect_fraud_patterns",
-            "mcp__graph__find_decision_community",
-            "mcp__graph__get_policy",
-            "mcp__graph__execute_cypher",
             "mcp__graph__get_schema",
+            "mcp__graph__explore_nodes",
+            "mcp__graph__search_nodes",
+            "mcp__graph__find_paths",
+            "mcp__graph__analyze_patterns",
+            "mcp__graph__execute_cypher",
         ],
     )
 
@@ -576,24 +432,19 @@ def get_agent_options() -> ClaudeAgentOptions:
 # ============================================
 
 AVAILABLE_TOOLS = [
-    "search_customer",
-    "get_customer_decisions",
-    "find_similar_decisions",
-    "find_precedents",
-    "get_causal_chain",
-    "record_decision",
-    "detect_fraud_patterns",
-    "find_decision_community",
-    "get_policy",
-    "execute_cypher",
     "get_schema",
+    "explore_nodes",
+    "search_nodes",
+    "find_paths",
+    "analyze_patterns",
+    "execute_cypher",
 ]
 
 
 def get_agent_context() -> dict[str, Any]:
     """Get agent context information for transparency/debugging."""
     return {
-        "system_prompt": CONTEXT_GRAPH_SYSTEM_PROMPT,
+        "system_prompt": build_system_prompt(),
         "model": "claude-sonnet-4-20250514",
         "available_tools": AVAILABLE_TOOLS,
         "mcp_server": "context-graph",
@@ -666,11 +517,6 @@ Please respond to the current message, taking the conversation history into acco
                                 "input": block.input if hasattr(block, "input") else {},
                             }
                         )
-                        # Track decisions made
-                        if block.name == "mcp__graph__record_decision":
-                            # Will be populated when we get the result
-                            pass
-
         return {
             "response": response_text,
             "tool_calls": tool_calls,
@@ -779,10 +625,6 @@ Please respond to the current message, taking the conversation history into acco
                             tool_id_to_name[tool_id] = block.name
 
                         yield {"type": "tool_use", **tool_call}
-
-                        # Track decisions made
-                        if block.name == "mcp__graph__record_decision":
-                            pass
 
         # Final event with summary
         yield {

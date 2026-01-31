@@ -25,6 +25,7 @@ from sse_starlette.sse import EventSourceResponse
 from .agent import ContextGraphAgent
 from .config import config
 from .context_graph_client import context_graph_client
+from .schema_service import SchemaService
 from .gds_client import gds_client
 from .models import (
     ChatRequest,
@@ -44,6 +45,13 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Context Graph API...")
     if context_graph_client.verify_connectivity():
         logger.info("Connected to Neo4j successfully!")
+
+        # Initialize schema cache for generic graph insight tools
+        try:
+            SchemaService.refresh()
+            logger.info("Schema cache initialized")
+        except Exception as e:
+            logger.warning(f"Could not initialize schema cache: {e}")
 
         # Ensure all required indexes exist
         logger.info("Checking database indexes...")
@@ -527,8 +535,18 @@ async def get_relationships_between(node_ids: list[str]):
 async def get_graph_schema():
     """Get the graph schema for visualization."""
     try:
-        schema = context_graph_client.get_schema()
+        schema = SchemaService.get_schema()
         return schema
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/graph/schema/refresh")
+async def refresh_graph_schema():
+    """Refresh the schema cache (call when graph structure changes)."""
+    try:
+        SchemaService.refresh()
+        return {"status": "ok", "message": "Schema cache refreshed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

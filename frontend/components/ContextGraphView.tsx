@@ -33,43 +33,24 @@ interface NvlRelationship {
   selected?: boolean;
 }
 
-// Node color mapping by label
-const NODE_COLORS: Record<string, string> = {
-  Person: "#4299E1",
-  Account: "#48BB78",
-  Transaction: "#ED8936",
-  Decision: "#9F7AEA",
-  Organization: "#F56565",
-  Policy: "#38B2AC",
-  Exception: "#D69E2E",
-  Escalation: "#805AD5",
-  Employee: "#63B3ED",
-  DecisionContext: "#B794F4",
-  Precedent: "#F687B3",
-  RelationshipType: "#A0AEC0",
-  Community: "#DD6B20",
-  SupportTicket: "#3182CE",
-  Alert: "#ECC94B",
-};
+// 调色板：高区分度，色相均匀分布（红橙黄绿青蓝紫粉）
+const COLOR_PALETTE = [
+  "#EF4444", "#F97316", "#EAB308", "#84CC16", "#22C55E", "#14B8A6",
+  "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7",
+  "#D946EF", "#EC4899", "#F43F5E", "#FB923C", "#FACC15", "#A3E635",
+  "#4ADE80", "#2DD4BF", "#22D3EE", "#38BDF8", "#818CF8", "#A78BFA",
+];
 
-// Node size by label
-const NODE_SIZES: Record<string, number> = {
-  Decision: 30,
-  Person: 25,
-  Account: 22,
-  Transaction: 18,
-  Organization: 25,
-  Policy: 22,
-  Exception: 20,
-  Escalation: 20,
-  Employee: 22,
-  DecisionContext: 18,
-  Precedent: 18,
-  RelationshipType: 20,
-  Community: 28,
-  SupportTicket: 20,
-  Alert: 22,
-};
+/** 根据 label 哈希生成稳定颜色，支持任意图谱 */
+function getColorForLabel(label: string): string {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return COLOR_PALETTE[Math.abs(hash) % COLOR_PALETTE.length];
+}
+
+const DEFAULT_NODE_SIZE = 22;
 
 interface SelectedElement {
   type: "node" | "relationship";
@@ -194,10 +175,10 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
           ? "#E53E3E"
           : isExpanded
             ? "#38A169" // Green for expanded nodes
-            : NODE_COLORS[primaryLabel] || "#718096",
+            : getColorForLabel(primaryLabel),
         size: isSelected
-          ? (NODE_SIZES[primaryLabel] || 20) * 1.3
-          : NODE_SIZES[primaryLabel] || 20,
+          ? DEFAULT_NODE_SIZE * 1.3
+          : DEFAULT_NODE_SIZE,
         selected: isSelected,
       };
     });
@@ -402,17 +383,22 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
             borderWidth="1px"
             borderColor="border.default"
           >
-            {Object.entries(NODE_COLORS)
-              .slice(0, 6)
-              .map(([label, color]) => (
-                <Badge
-                  key={label}
-                  size="sm"
-                  style={{ backgroundColor: color, color: "white" }}
-                >
-                  {label}
-                </Badge>
-              ))}
+            {(() => {
+              const labels = new Set<string>();
+              internalGraphData?.nodes?.forEach((n) => n.labels.forEach((l) => labels.add(l)));
+              return Array.from(labels)
+                .sort()
+                .slice(0, 12)
+                .map((label) => (
+                  <Badge
+                    key={label}
+                    size="sm"
+                    style={{ backgroundColor: getColorForLabel(label), color: "white" }}
+                  >
+                    {label}
+                  </Badge>
+                ));
+            })()}
           </Flex>
         )}
 
@@ -451,7 +437,7 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
                       key={label}
                       size="sm"
                       style={{
-                        backgroundColor: NODE_COLORS[label] || "#718096",
+                        backgroundColor: getColorForLabel(label),
                         color: "white",
                       }}
                     >

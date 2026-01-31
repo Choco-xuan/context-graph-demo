@@ -91,22 +91,12 @@ export function DecisionTracePanel({
 
   // Only show decisions from the graph
   const decisionsToShow = graphDecisions;
-  const listTitle = "图中的决策";
-  const listDescription =
-    graphDecisions.length > 0
-      ? "语境图中可见的决策。点击查看详情，双击节点可展开。"
-      : "使用 AI 助手搜索客户或决策。决策节点加入图后会在此显示。";
 
   // Show decisions list when no decision is selected
   if (!decision) {
     return (
       <Box p={4}>
         <VStack gap={4} align="stretch">
-          <Heading size="sm" color="gray.100">{listTitle}</Heading>
-          <Text fontSize="sm" color="gray.400">
-            {listDescription}
-          </Text>
-
           {graphDecisions.length > 0 && (
             <Badge colorPalette="blue" size="sm" alignSelf="flex-start">
               图中共 {graphDecisions.length} 个决策

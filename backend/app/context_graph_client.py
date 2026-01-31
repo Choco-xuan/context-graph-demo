@@ -758,7 +758,7 @@ class ContextGraphClient:
     # CYPHER EXECUTION (Read-only)
     # ============================================
 
-    def execute_cypher(self, cypher: str, parameters: dict = None) -> list[dict]:
+    def execute_cypher(self, cypher: str, parameters: dict | None = None) -> list[dict]:
         """Execute a read-only Cypher query."""
         # Basic safety check - only allow read operations
         cypher_upper = cypher.upper().strip()
@@ -768,9 +768,17 @@ class ContextGraphClient:
         ):
             raise ValueError("Only read operations are allowed")
 
+        params = parameters if isinstance(parameters, dict) else {}
+
         with self.driver.session(database=self.database) as session:
-            result = session.run(cypher, parameters or {})
-            return [dict(record) for record in result]
+            result = session.run(cypher, params)
+            rows = []
+            for record in result:
+                try:
+                    rows.append(dict(record))
+                except (ValueError, TypeError):
+                    rows.append({k: record[k] for k in record.keys()})
+            return rows
 
     def get_schema(self) -> dict[str, Any]:
         """Get the graph database schema including node labels, relationship types, and properties."""
