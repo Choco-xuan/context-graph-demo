@@ -66,6 +66,9 @@ interface ContextGraphViewProps {
   selectedNodeId?: string;
   height?: string;
   showLegend?: boolean;
+  /** 图谱洞察联动：按节点类型或关系类型筛选展示 */
+  highlightLabel?: string | null;
+  highlightRelType?: string | null;
   /** 用于 next/dynamic 时拿到 zoom 控制，传 useRef 即可 */
   innerRef?: React.RefObject<ContextGraphViewRef | null>;
 }
@@ -84,6 +87,8 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
   selectedNodeId,
   height = "100%",
   showLegend = true,
+  highlightLabel = null,
+  highlightRelType = null,
   innerRef,
 }, ref) {
   const [selectedElement, setSelectedElement] =
@@ -145,11 +150,62 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     }
   }, [internalGraphData, onDecisionNodesChange]);
 
+  // Filter data when insight filter is active
+  const filteredGraphData = useMemo(() => {
+    if (!internalGraphData?.nodes?.length) return internalGraphData;
+    if (!highlightLabel && !highlightRelType) return internalGraphData;
+
+    let nodeIds = new Set<string>();
+    let rels = internalGraphData.relationships;
+
+    if (highlightRelType) {
+      rels = rels.filter((r) => r.type === highlightRelType);
+      rels.forEach((r) => {
+        nodeIds.add(r.startNodeId);
+        nodeIds.add(r.endNodeId);
+      });
+    }
+
+    if (highlightLabel) {
+      const labelNodeIds = new Set(
+        internalGraphData.nodes
+          .filter((n) => !n.properties.isSchemaNode && n.labels.includes(highlightLabel!))
+          .map((n) => n.id)
+      );
+      if (!highlightRelType) {
+        labelNodeIds.forEach((id) => nodeIds.add(id));
+        internalGraphData.relationships.forEach((r) => {
+          if (labelNodeIds.has(r.startNodeId) || labelNodeIds.has(r.endNodeId)) {
+            nodeIds.add(r.startNodeId);
+            nodeIds.add(r.endNodeId);
+          }
+        });
+        rels = internalGraphData.relationships.filter(
+          (r) => nodeIds.has(r.startNodeId) && nodeIds.has(r.endNodeId)
+        );
+      } else {
+        const keepNodeIds = new Set<string>();
+        rels.forEach((r) => {
+          if (labelNodeIds.has(r.startNodeId) || labelNodeIds.has(r.endNodeId)) {
+            keepNodeIds.add(r.startNodeId);
+            keepNodeIds.add(r.endNodeId);
+          }
+        });
+        nodeIds = keepNodeIds;
+        rels = rels.filter((r) => nodeIds.has(r.startNodeId) && nodeIds.has(r.endNodeId));
+      }
+    }
+
+    const filteredNodes = internalGraphData.nodes.filter((n) => nodeIds.has(n.id));
+    return { nodes: filteredNodes, relationships: rels };
+  }, [internalGraphData, highlightLabel, highlightRelType]);
+
   // Transform graph data to NVL format
   const nvlData = useMemo(() => {
-    if (!internalGraphData) return { nodes: [], relationships: [] };
+    const data = filteredGraphData ?? internalGraphData;
+    if (!data?.nodes?.length) return { nodes: [], relationships: [] };
 
-    const nodes: NvlNode[] = internalGraphData.nodes.map((node) => {
+    const nodes: NvlNode[] = data.nodes.map((node) => {
       const primaryLabel = node.labels[0] || "Unknown";
       const isSchemaNode = node.properties.isSchemaNode as boolean;
       const count = node.properties.count as number;
@@ -184,7 +240,7 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     });
 
     const relationships: NvlRelationship[] =
-      internalGraphData.relationships.map((rel) => {
+      (filteredGraphData ?? internalGraphData)!.relationships.map((rel) => {
         const isSelected = internalSelectedRelId === rel.id;
         return {
           id: rel.id,
@@ -205,6 +261,7 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     return { nodes, relationships };
   }, [
     internalGraphData,
+    filteredGraphData,
     internalSelectedNodeId,
     internalSelectedRelId,
     expandedNodeIds,
@@ -385,7 +442,9 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
           >
             {(() => {
               const labels = new Set<string>();
-              internalGraphData?.nodes?.forEach((n) => n.labels.forEach((l) => labels.add(l)));
+              (filteredGraphData ?? internalGraphData)?.nodes?.forEach((n) =>
+                n.labels.forEach((l) => labels.add(l))
+              );
               return Array.from(labels)
                 .sort()
                 .slice(0, 12)

@@ -389,25 +389,15 @@ export function ChatInterface({
               <VStack align="start" mt={3} gap={1}>
                 <SuggestionChip
                   text="当前图谱中有哪些核心节点？"
-                  onClick={() =>
-                    setInput("当前图谱中有哪些核心节点？")
-                  }
+                  onClick={() => setInput("当前图谱中有哪些核心节点？")}
                 />
                 <SuggestionChip
-                  text="如何搜索客户信息？"
-                  onClick={() => setInput("如何搜索客户信息？")}
+                  text="图中各类型节点和关系的分布如何？"
+                  onClick={() => setInput("图中各类型节点和关系的分布如何？")}
                 />
                 <SuggestionChip
-                  text="大额交易需要遵循哪些政策？"
-                  onClick={() =>
-                    setInput("大额交易需要遵循哪些政策？")
-                  }
-                />
-                <SuggestionChip
-                  text="如何查找类似的决策先例？"
-                  onClick={() =>
-                    setInput("如何查找类似的决策先例？")
-                  }
+                  text="图中最大深度的节点有哪些？"
+                  onClick={() => setInput("图中最大深度的节点有哪些？")}
                 />
               </VStack>
             </Box>

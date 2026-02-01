@@ -51,6 +51,10 @@ export default function Home() {
   >([]);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [insightFilter, setInsightFilter] = useState<{
+    label?: string;
+    relType?: string;
+  } | null>(null);
   const graphRef = useRef<ContextGraphViewRef | null>(null);
 
   useEffect(() => {
@@ -58,6 +62,11 @@ export default function Home() {
       .then(setGraphData)
       .catch(() => {});
   }, []);
+
+  // 图谱数据更新时清除洞察筛选，避免筛选条件与数据不匹配
+  useEffect(() => {
+    setInsightFilter(null);
+  }, [graphData]);
 
   const handleDecisionSelect = useCallback((decision: Decision) => {
     setSelectedDecision(decision);
@@ -140,6 +149,8 @@ export default function Home() {
               selectedNodeId={selectedDecision?.id}
               height="100%"
               showLegend={true}
+              highlightLabel={insightFilter?.label ?? null}
+              highlightRelType={insightFilter?.relType ?? null}
             />
           </Box>
 
@@ -272,6 +283,9 @@ export default function Home() {
               decision={selectedDecision}
               onDecisionSelect={handleDecisionSelect}
               graphDecisions={graphDecisions}
+              graphData={graphData}
+              insightFilter={insightFilter}
+              onInsightFilterChange={setInsightFilter}
             />
           </Box>
         </Box>

@@ -19,12 +19,21 @@ import {
   type Decision,
   type SimilarDecision,
   type CausalChain,
+  type GraphData,
 } from "@/lib/api";
+
+interface InsightFilter {
+  label?: string;
+  relType?: string;
+}
 
 interface DecisionTracePanelProps {
   decision: Decision | null;
   onDecisionSelect: (decision: Decision) => void;
   graphDecisions?: Decision[]; // Decisions from the graph visualization
+  graphData?: GraphData | null; // Full graph for insights when no decisions
+  insightFilter?: InsightFilter | null; // 图谱洞察联动筛选
+  onInsightFilterChange?: (filter: InsightFilter | null) => void;
 }
 
 const DECISION_TYPE_COLORS: Record<string, string> = {
@@ -52,10 +61,32 @@ const CATEGORY_COLORS: Record<string, string> = {
   support: "orange",
 };
 
+/** 从图谱数据计算洞察：节点类型分布、关系类型分布 */
+function computeGraphInsights(data: GraphData | null | undefined) {
+  if (!data?.nodes?.length) return null;
+  const labelCounts: Record<string, number> = {};
+  const relTypeCounts: Record<string, number> = {};
+  data.nodes.forEach((n) => {
+    n.labels.forEach((l) => {
+      if (!n.properties.isSchemaNode) labelCounts[l] = (labelCounts[l] || 0) + 1;
+    });
+  });
+  data.relationships?.forEach((r) => {
+    relTypeCounts[r.type] = (relTypeCounts[r.type] || 0) + 1;
+  });
+  const totalNodes = Object.values(labelCounts).reduce((a, b) => a + b, 0);
+  const totalRels = Object.values(relTypeCounts).reduce((a, b) => a + b, 0);
+  if (totalNodes === 0) return null;
+  return { labelCounts, relTypeCounts, totalNodes, totalRels };
+}
+
 export function DecisionTracePanel({
   decision,
   onDecisionSelect,
   graphDecisions = [],
+  graphData,
+  insightFilter,
+  onInsightFilterChange,
 }: DecisionTracePanelProps) {
   const [similarDecisions, setSimilarDecisions] = useState<SimilarDecision[]>(
     [],
@@ -94,6 +125,7 @@ export function DecisionTracePanel({
 
   // Show decisions list when no decision is selected
   if (!decision) {
+    const insights = computeGraphInsights(graphData);
     return (
       <Box p={4}>
         <VStack gap={4} align="stretch">
@@ -113,9 +145,99 @@ export function DecisionTracePanel({
                 />
               ))}
             </VStack>
+          ) : insights ? (
+            <VStack gap={3} align="stretch">
+              {(insightFilter?.label || insightFilter?.relType) && onInsightFilterChange && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  colorPalette="gray"
+                  alignSelf="flex-end"
+                  onClick={() => onInsightFilterChange(null)}
+                >
+                  清除筛选
+                </Button>
+              )}
+              <Box
+                p={3}
+                borderRadius="md"
+                bg="whiteAlpha.50"
+                borderWidth="1px"
+                borderColor="whiteAlpha.100"
+              >
+                <Text fontSize="xs" color="gray.400" mb={2}>
+                  共 {insights.totalNodes} 个节点，{insights.totalRels} 条关系
+                  {(insightFilter?.label || insightFilter?.relType) && " · 已筛选"}
+                </Text>
+                <VStack align="stretch" gap={1}>
+                  <Text fontSize="xs" fontWeight="semibold" color="gray.300">
+                    节点类型（点击筛选）
+                  </Text>
+                  <Flex gap={2} flexWrap="wrap">
+                    {Object.entries(insights.labelCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([label, count]) => {
+                        const isActive = insightFilter?.label === label;
+                        return (
+                          <Badge
+                            key={label}
+                            size="sm"
+                            colorPalette={isActive ? "blue" : "cyan"}
+                            variant={isActive ? "solid" : "subtle"}
+                            cursor={onInsightFilterChange ? "pointer" : "default"}
+                            _hover={onInsightFilterChange ? { opacity: 0.9 } : {}}
+                            onClick={() =>
+                              onInsightFilterChange?.(
+                                isActive ? (insightFilter?.relType ? { relType: insightFilter.relType } : null) : { ...insightFilter, label }
+                              )
+                            }
+                          >
+                            {label}: {count}
+                          </Badge>
+                        );
+                      })}
+                  </Flex>
+                  {Object.keys(insights.relTypeCounts).length > 0 && (
+                    <>
+                      <Text fontSize="xs" fontWeight="semibold" color="gray.300" mt={2}>
+                        关系类型（点击筛选）
+                      </Text>
+                      <Flex gap={2} flexWrap="wrap">
+                        {Object.entries(insights.relTypeCounts)
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 12)
+                          .map(([type, count]) => {
+                            const isActive = insightFilter?.relType === type;
+                            return (
+                              <Badge
+                                key={type}
+                                size="sm"
+                                colorPalette={isActive ? "purple" : "purple"}
+                                variant={isActive ? "solid" : "subtle"}
+                                cursor={onInsightFilterChange ? "pointer" : "default"}
+                                _hover={onInsightFilterChange ? { opacity: 0.9 } : {}}
+                                onClick={() =>
+                                  onInsightFilterChange?.(
+                                    isActive ? (insightFilter?.label ? { label: insightFilter.label } : null) : { ...insightFilter, relType: type }
+                                  )
+                                }
+                              >
+                                {type}: {count}
+                              </Badge>
+                            );
+                          })}
+                      </Flex>
+                    </>
+                  )}
+                </VStack>
+              </Box>
+              <Text fontSize="xs" color="gray.500">
+                使用 AI 助手探索节点或提问「当前图谱中有哪些核心节点？」
+              </Text>
+            </VStack>
           ) : (
             <Text color="gray.400" textAlign="center" py={4}>
-              图中暂无决策。
+              图中暂无数据，请等待加载或使用 AI 助手搜索。
             </Text>
           )}
         </VStack>
