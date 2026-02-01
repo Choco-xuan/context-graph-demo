@@ -21,6 +21,7 @@ import {
   type CausalChain,
   type GraphData,
 } from "@/lib/api";
+import { getColorForLabel } from "@/lib/colors";
 
 interface InsightFilter {
   label?: string;
@@ -126,14 +127,15 @@ export function DecisionTracePanel({
   // Show decisions list when no decision is selected
   if (!decision) {
     const insights = computeGraphInsights(graphData);
+    const hasFilter = !!(insightFilter?.label || insightFilter?.relType);
     return (
       <Box p={4}>
         <VStack gap={4} align="stretch">
-          {graphDecisions.length > 0 && (
+          {graphDecisions.length > 0 ? (
             <Badge colorPalette="blue" size="sm" alignSelf="flex-start">
               图中共 {graphDecisions.length} 个决策
             </Badge>
-          )}
+          ) : null}
 
           {decisionsToShow.length > 0 ? (
             <VStack gap={2} align="stretch">
@@ -147,7 +149,7 @@ export function DecisionTracePanel({
             </VStack>
           ) : insights ? (
             <VStack gap={3} align="stretch">
-              {(insightFilter?.label || insightFilter?.relType) && onInsightFilterChange && (
+              {hasFilter && onInsightFilterChange ? (
                 <Button
                   size="xs"
                   variant="ghost"
@@ -157,7 +159,7 @@ export function DecisionTracePanel({
                 >
                   清除筛选
                 </Button>
-              )}
+              ) : null}
               <Box
                 p={3}
                 borderRadius="md"
@@ -167,7 +169,7 @@ export function DecisionTracePanel({
               >
                 <Text fontSize="xs" color="gray.400" mb={2}>
                   共 {insights.totalNodes} 个节点，{insights.totalRels} 条关系
-                  {(insightFilter?.label || insightFilter?.relType) && " · 已筛选"}
+                  {hasFilter ? " · 已筛选" : ""}
                 </Text>
                 <VStack align="stretch" gap={1}>
                   <Text fontSize="xs" fontWeight="semibold" color="gray.300">
@@ -178,14 +180,16 @@ export function DecisionTracePanel({
                       .sort((a, b) => b[1] - a[1])
                       .map(([label, count]) => {
                         const isActive = insightFilter?.label === label;
+                        const bg = getColorForLabel(label);
                         return (
                           <Badge
                             key={label}
                             size="sm"
-                            colorPalette={isActive ? "blue" : "cyan"}
-                            variant={isActive ? "solid" : "subtle"}
+                            bg={isActive ? "cyan.500" : bg}
+                            color="white"
+                            opacity={isActive ? 1 : 0.9}
                             cursor={onInsightFilterChange ? "pointer" : "default"}
-                            _hover={onInsightFilterChange ? { opacity: 0.9 } : {}}
+                            _hover={onInsightFilterChange ? { opacity: 1 } : {}}
                             onClick={() =>
                               onInsightFilterChange?.(
                                 isActive ? (insightFilter?.relType ? { relType: insightFilter.relType } : null) : { ...insightFilter, label }
@@ -208,14 +212,16 @@ export function DecisionTracePanel({
                           .slice(0, 12)
                           .map(([type, count]) => {
                             const isActive = insightFilter?.relType === type;
+                            const bg = getColorForLabel(type);
                             return (
                               <Badge
                                 key={type}
                                 size="sm"
-                                colorPalette={isActive ? "purple" : "purple"}
-                                variant={isActive ? "solid" : "subtle"}
+                                bg={isActive ? "purple.500" : bg}
+                                color="white"
+                                opacity={isActive ? 1 : 0.9}
                                 cursor={onInsightFilterChange ? "pointer" : "default"}
-                                _hover={onInsightFilterChange ? { opacity: 0.9 } : {}}
+                                _hover={onInsightFilterChange ? { opacity: 1 } : {}}
                                 onClick={() =>
                                   onInsightFilterChange?.(
                                     isActive ? (insightFilter?.label ? { label: insightFilter.label } : null) : { ...insightFilter, relType: type }

@@ -19,6 +19,7 @@ import { InlineGraph } from "./ContextGraphView";
 import {
   streamChatMessage,
   getGraphData,
+  getChatSuggestions,
   type ChatMessage,
   type StreamEvent,
   type Decision,
@@ -122,8 +123,23 @@ export function ChatInterface({
   const [messages, setMessages] = useState<MessageWithGraph[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([
+    "当前图谱中有哪些核心节点？",
+    "图中各类型节点和关系的分布如何？",
+    "图中最大深度的节点有哪些？",
+  ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 先展示默认候选问题，后台静默获取 AI 推荐，成功后替换
+  useEffect(() => {
+    if (messages.length > 0) return;
+    getChatSuggestions()
+      .then((qs) => {
+        if (qs.length >= 3) setSuggestedQuestions(qs);
+      })
+      .catch(() => {});
+  }, [messages.length]);
 
   // Scroll to bottom only when user sends a new message (not during streaming updates)
   const scrollToBottom = useCallback(() => {
@@ -387,18 +403,13 @@ export function ChatInterface({
                 我可以帮您探索图谱、搜索节点、分析关系模式。试试提问：
               </Text>
               <VStack align="start" mt={3} gap={1}>
-                <SuggestionChip
-                  text="当前图谱中有哪些核心节点？"
-                  onClick={() => setInput("当前图谱中有哪些核心节点？")}
-                />
-                <SuggestionChip
-                  text="图中各类型节点和关系的分布如何？"
-                  onClick={() => setInput("图中各类型节点和关系的分布如何？")}
-                />
-                <SuggestionChip
-                  text="图中最大深度的节点有哪些？"
-                  onClick={() => setInput("图中最大深度的节点有哪些？")}
-                />
+                {suggestedQuestions.map((q) => (
+                  <SuggestionChip
+                    key={q}
+                    text={q}
+                    onClick={() => setInput(q)}
+                  />
+                ))}
               </VStack>
             </Box>
           )}

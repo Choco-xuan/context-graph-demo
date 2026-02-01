@@ -63,39 +63,69 @@ async def lifespan(app: FastAPI):
         if index_results["errors"]:
             logger.warning(f"Index errors: {index_results['errors']}")
 
-        # Generate reasoning embeddings for decisions that don't have them
-        logger.info("Checking decision embeddings...")
-        total_generated = 0
-        while True:
-            try:
-                count = vector_client.batch_update_decision_embeddings(limit=100)
-                if count == 0:
+        # Decision-trace features: only run when graph has the expected schema with data
+        schema = SchemaService.get_schema()
+        node_labels = set(schema.get("node_labels", []))
+        rel_types = set(schema.get("relationship_types", []))
+        rel_counts = schema.get("relationship_counts", {})
+        prop_keys = set(schema.get("property_keys", []))
+        decision_schema_rel_types = {
+            "OWNS", "MADE_BY", "FROM_ACCOUNT", "TO_ACCOUNT",
+            "APPLIED_POLICY", "CAUSED", "INFLUENCED", "PRECEDENT_FOR", "ABOUT",
+        }
+        # Require all rel types to exist AND have at least one relationship
+        required_rels_present = all(
+            rel_counts.get(rt, 0) > 0 for rt in decision_schema_rel_types
+        )
+        has_decision_schema = (
+            "Decision" in node_labels
+            and decision_schema_rel_types.issubset(rel_types)
+            and required_rels_present
+        )
+
+        # Generate reasoning embeddings only when Decision nodes with reasoning exist
+        if has_decision_schema and "reasoning" in prop_keys:
+            logger.info("Checking decision embeddings...")
+            total_generated = 0
+            while True:
+                try:
+                    count = vector_client.batch_update_decision_embeddings(limit=100)
+                    if count == 0:
+                        break
+                    total_generated += count
+                    logger.info(f"Generated embeddings for {count} decisions ({total_generated} total)")
+                except Exception as e:
+                    logger.warning(f"Could not generate embeddings: {e}")
                     break
-                total_generated += count
-                logger.info(f"Generated embeddings for {count} decisions ({total_generated} total)")
-            except Exception as e:
-                logger.warning(f"Could not generate embeddings: {e}")
-                break
 
-        if total_generated > 0:
-            logger.info(f"Finished generating {total_generated} decision embeddings")
-        else:
-            logger.info("All decisions already have embeddings")
-
-        # Run Louvain community detection to compute community IDs for decisions
-        logger.info("Running Louvain community detection...")
-        try:
-            community_result = gds_client.write_community_ids()
-            if community_result.get("status") == "already_computed":
-                logger.info("Community IDs already computed")
-            elif community_result:
-                logger.info(
-                    f"Community detection complete: {community_result.get('communityCount', 0)} communities found"
-                )
+            if total_generated > 0:
+                logger.info(f"Finished generating {total_generated} decision embeddings")
             else:
-                logger.info("Community detection complete")
-        except Exception as e:
-            logger.warning(f"Could not run community detection: {e}")
+                logger.info("All decisions already have embeddings")
+        else:
+            logger.info(
+                "Skipping decision embeddings (schema mismatch: need Decision nodes with reasoning)"
+            )
+
+        # Run Louvain community detection only when decision-trace schema exists
+        if has_decision_schema:
+            logger.info("Running Louvain community detection...")
+            try:
+                community_result = gds_client.write_community_ids()
+                if community_result.get("status") == "already_computed":
+                    logger.info("Community IDs already computed")
+                elif community_result:
+                    logger.info(
+                        f"Community detection complete: {community_result.get('communityCount', 0)} communities found"
+                    )
+                else:
+                    logger.info("Community detection complete")
+            except Exception as e:
+                logger.warning(f"Could not run community detection: {e}")
+        else:
+            logger.info(
+                "Skipping community detection (schema mismatch: need decision-trace relationship types)"
+            )
     else:
         logger.warning("Could not connect to Neo4j")
     yield
@@ -147,6 +177,25 @@ async def health_check():
 # ============================================
 # CHAT / AGENT ENDPOINTS
 # ============================================
+
+from .suggestions_service import generate_suggested_questions
+
+
+@app.get("/api/chat/suggestions")
+async def get_chat_suggestions():
+    """Get AI-generated suggested questions based on current graph schema."""
+    try:
+        questions = await generate_suggested_questions()
+        return {"suggestions": questions}
+    except Exception as e:
+        logger.warning(f"Failed to generate suggestions: {e}")
+        return {
+            "suggestions": [
+                "当前图谱中有哪些核心节点？",
+                "图中各类型节点和关系的分布如何？",
+                "图中最大深度的节点有哪些？",
+            ]
+        }
 
 
 @app.post("/api/chat", response_model=ChatResponse)

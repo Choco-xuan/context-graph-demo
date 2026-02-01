@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import type { GraphData, GraphNode, GraphRelationship } from "@/lib/api";
 import { expandNode, getRelationshipsBetween } from "@/lib/api";
+import { getColorForLabel } from "@/lib/colors";
 
 // NVL types
 interface NvlNode {
@@ -31,23 +32,6 @@ interface NvlRelationship {
   caption?: string;
   color?: string;
   selected?: boolean;
-}
-
-// 调色板：高区分度，色相均匀分布（红橙黄绿青蓝紫粉）
-const COLOR_PALETTE = [
-  "#EF4444", "#F97316", "#EAB308", "#84CC16", "#22C55E", "#14B8A6",
-  "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7",
-  "#D946EF", "#EC4899", "#F43F5E", "#FB923C", "#FACC15", "#A3E635",
-  "#4ADE80", "#2DD4BF", "#22D3EE", "#38BDF8", "#818CF8", "#A78BFA",
-];
-
-/** 根据 label 哈希生成稳定颜色，支持任意图谱 */
-function getColorForLabel(label: string): string {
-  let hash = 0;
-  for (let i = 0; i < label.length; i++) {
-    hash = label.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return COLOR_PALETTE[Math.abs(hash) % COLOR_PALETTE.length];
 }
 
 const DEFAULT_NODE_SIZE = 22;

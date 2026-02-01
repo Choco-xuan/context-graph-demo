@@ -77,6 +77,11 @@ export interface ChatResponse {
   decisions_made: string[];
 }
 
+export async function getChatSuggestions(): Promise<string[]> {
+  const response = await api.get<{ suggestions: string[] }>("/api/chat/suggestions");
+  return response.data.suggestions || [];
+}
+
 export interface SimilarDecision {
   decision: Decision;
   similarity_score: number;
