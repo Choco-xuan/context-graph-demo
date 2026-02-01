@@ -14,7 +14,7 @@ import {
 } from "@chakra-ui/react";
 import type { GraphData, GraphNode, GraphRelationship } from "@/lib/api";
 import { expandNode, getRelationshipsBetween } from "@/lib/api";
-import { getColorForLabel } from "@/lib/colors";
+import { getColorForLabel, getColorForRelationshipType } from "@/lib/colors";
 
 // NVL types
 interface NvlNode {
@@ -189,24 +189,41 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     const data = filteredGraphData ?? internalGraphData;
     if (!data?.nodes?.length) return { nodes: [], relationships: [] };
 
+    const rels = data.relationships;
+    const nodeDegree: Record<string, number> = {};
+    data.nodes.forEach((n) => { nodeDegree[n.id] = 0; });
+    rels.forEach((r) => {
+      nodeDegree[r.startNodeId] = (nodeDegree[r.startNodeId] ?? 0) + 1;
+      nodeDegree[r.endNodeId] = (nodeDegree[r.endNodeId] ?? 0) + 1;
+    });
+
     const nodes: NvlNode[] = data.nodes.map((node) => {
-      const primaryLabel = node.labels[0] || "Unknown";
+      const labels = node.labels?.filter(Boolean) || [];
+      const colorKey =
+        labels.length > 0
+          ? [...labels].sort().join("_")
+          : (node.properties.type as string) ||
+            (node.properties.nodeType as string) ||
+            "Node";
       const isSchemaNode = node.properties.isSchemaNode as boolean;
       const count = node.properties.count as number;
       const isExpanded = expandedNodeIds.has(node.id);
+      const degree = nodeDegree[node.id] ?? 0;
 
       let caption =
         (node.properties.name as string) ||
         (node.properties.first_name as string) ||
         (node.properties.decision_type as string) ||
+        (node.properties.id as string) ||
         node.id.slice(0, 8);
 
-      // Add count to caption for schema nodes
       if (isSchemaNode && count !== undefined) {
         caption = `${caption} (${count})`;
       }
 
       const isSelected = internalSelectedNodeId === node.id;
+      const baseSize = DEFAULT_NODE_SIZE;
+      const sizeByDegree = Math.min(baseSize + degree * 1.5, baseSize * 1.8);
 
       return {
         id: node.id,
@@ -214,33 +231,26 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
         color: isSelected
           ? "#E53E3E"
           : isExpanded
-            ? "#38A169" // Green for expanded nodes
-            : getColorForLabel(primaryLabel),
+            ? "#38A169"
+            : getColorForLabel(colorKey),
         size: isSelected
-          ? DEFAULT_NODE_SIZE * 1.3
-          : DEFAULT_NODE_SIZE,
+          ? baseSize * 1.3
+          : sizeByDegree,
         selected: isSelected,
       };
     });
 
-    const relationships: NvlRelationship[] =
-      (filteredGraphData ?? internalGraphData)!.relationships.map((rel) => {
-        const isSelected = internalSelectedRelId === rel.id;
-        return {
-          id: rel.id,
-          from: rel.startNodeId,
-          to: rel.endNodeId,
-          caption: rel.type,
-          color: isSelected
-            ? "#E53E3E"
-            : rel.type === "CAUSED"
-              ? "#E53E3E"
-              : rel.type === "INFLUENCED"
-                ? "#D69E2E"
-                : "#A0AEC0",
-          selected: isSelected,
-        };
-      });
+    const relationships: NvlRelationship[] = rels.map((rel) => {
+      const isSelected = internalSelectedRelId === rel.id;
+      return {
+        id: rel.id,
+        from: rel.startNodeId,
+        to: rel.endNodeId,
+        caption: rel.type,
+        color: isSelected ? "#E53E3E" : getColorForRelationshipType(rel.type || "REL"),
+        selected: isSelected,
+      };
+    });
 
     return { nodes, relationships };
   }, [
@@ -690,6 +700,7 @@ function NvlGraph({
         maxZoom: 5,
         relationshipThickness: 2,
         disableTelemetry: true,
+        renderer: "canvas",
       }}
       mouseEventCallbacks={{
         onNodeClick: (node: NvlNode) => onNodeClick(node),

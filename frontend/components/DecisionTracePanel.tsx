@@ -21,7 +21,7 @@ import {
   type CausalChain,
   type GraphData,
 } from "@/lib/api";
-import { getColorForLabel } from "@/lib/colors";
+import { getColorForLabel, getColorForRelationshipType } from "@/lib/colors";
 
 interface InsightFilter {
   label?: string;
@@ -212,7 +212,7 @@ export function DecisionTracePanel({
                           .slice(0, 12)
                           .map(([type, count]) => {
                             const isActive = insightFilter?.relType === type;
-                            const bg = getColorForLabel(type);
+                            const bg = getColorForRelationshipType(type);
                             return (
                               <Badge
                                 key={type}
