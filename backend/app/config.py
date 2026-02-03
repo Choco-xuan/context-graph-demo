@@ -87,9 +87,17 @@ class AppConfig:
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
+    # CORS 允许的源，用于 iframe 嵌入等场景
+    cors_origins: list[str] = ()
 
     @classmethod
     def from_env(cls) -> "AppConfig":
+        cors_str = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,"
+            "http://127.0.0.1:3001,http://10.17.97.249:3001,https://context-graph-demo.vercel.app",
+        )
+        cors_origins = [o.strip() for o in cors_str.split(",") if o.strip()]
         return cls(
             neo4j=Neo4jConfig.from_env(),
             openai=OpenAIConfig.from_env(),
@@ -98,6 +106,7 @@ class AppConfig:
             host=os.getenv("HOST", "0.0.0.0"),
             port=int(os.getenv("PORT", "8000")),
             debug=os.getenv("DEBUG", "false").lower() == "true",
+            cors_origins=cors_origins,
         )
 
 

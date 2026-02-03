@@ -15,6 +15,7 @@ import {
 import type { GraphData, GraphNode, GraphRelationship } from "@/lib/api";
 import { expandNode, getRelationshipsBetween } from "@/lib/api";
 import { getColorForLabel, getColorForRelationshipType } from "@/lib/colors";
+import { getDisplayLabels } from "@/lib/graphConfig";
 
 // NVL types
 interface NvlNode {
@@ -114,11 +115,10 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     graphData,
   );
 
-  // Update internal graph data when prop changes
+  // Update internal graph data when prop changes（仅在有节点时更新，避免 AI 处理中传入空数据清空主图）
   useEffect(() => {
-    if (graphData) {
+    if (graphData?.nodes?.length) {
       setInternalGraphData(graphData);
-      // Reset expanded nodes when new graph data comes in
       setExpandedNodeIds(new Set());
     }
   }, [graphData]);
@@ -153,7 +153,13 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     if (highlightLabel) {
       const labelNodeIds = new Set(
         internalGraphData.nodes
-          .filter((n) => !n.properties.isSchemaNode && n.labels.includes(highlightLabel!))
+          .filter((n) => {
+            if (n.properties.isSchemaNode) return false;
+            if (highlightLabel === "节点") {
+              return getDisplayLabels(n.labels || []).length === 0;
+            }
+            return n.labels.includes(highlightLabel!);
+          })
           .map((n) => n.id)
       );
       if (!highlightRelType) {
@@ -198,10 +204,10 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
     });
 
     const nodes: NvlNode[] = data.nodes.map((node) => {
-      const labels = node.labels?.filter(Boolean) || [];
+      const displayLabels = getDisplayLabels(node.labels || []);
       const colorKey =
-        labels.length > 0
-          ? [...labels].sort().join("_")
+        displayLabels.length > 0
+          ? [...displayLabels].sort().join("_")
           : (node.properties.type as string) ||
             (node.properties.nodeType as string) ||
             "Node";
@@ -437,7 +443,7 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
             {(() => {
               const labels = new Set<string>();
               (filteredGraphData ?? internalGraphData)?.nodes?.forEach((n) =>
-                n.labels.forEach((l) => labels.add(l))
+                getDisplayLabels(n.labels || []).forEach((l) => labels.add(l))
               );
               return Array.from(labels)
                 .sort()
@@ -485,18 +491,24 @@ export const ContextGraphView = forwardRef<ContextGraphViewRef, ContextGraphView
                   标签：
                 </Text>
                 <Flex gap={1} flexWrap="wrap">
-                  {(selectedElement.data as GraphNode).labels.map((label) => (
-                    <Badge
-                      key={label}
-                      size="sm"
-                      style={{
-                        backgroundColor: getColorForLabel(label),
-                        color: "white",
-                      }}
-                    >
-                      {label}
-                    </Badge>
-                  ))}
+                  {getDisplayLabels((selectedElement.data as GraphNode).labels || []).length > 0
+                    ? getDisplayLabels((selectedElement.data as GraphNode).labels || []).map((label) => (
+                        <Badge
+                          key={label}
+                          size="sm"
+                          style={{
+                            backgroundColor: getColorForLabel(label),
+                            color: "white",
+                          }}
+                        >
+                          {label}
+                        </Badge>
+                      ))
+                    : (
+                        <Badge size="sm" colorPalette="gray">
+                          节点
+                        </Badge>
+                      )}
                 </Flex>
               </HStack>
               <Box>

@@ -22,6 +22,7 @@ import {
   type GraphData,
 } from "@/lib/api";
 import { getColorForLabel, getColorForRelationshipType } from "@/lib/colors";
+import { getDisplayLabels } from "@/lib/graphConfig";
 
 interface InsightFilter {
   label?: string;
@@ -62,15 +63,19 @@ const CATEGORY_COLORS: Record<string, string> = {
   support: "orange",
 };
 
-/** 从图谱数据计算洞察：节点类型分布、关系类型分布 */
+/** 从图谱数据计算洞察：节点类型分布、关系类型分布（领域标签如 GW 不参与） */
 function computeGraphInsights(data: GraphData | null | undefined) {
   if (!data?.nodes?.length) return null;
   const labelCounts: Record<string, number> = {};
   const relTypeCounts: Record<string, number> = {};
   data.nodes.forEach((n) => {
-    n.labels.forEach((l) => {
-      if (!n.properties.isSchemaNode) labelCounts[l] = (labelCounts[l] || 0) + 1;
-    });
+    if (n.properties.isSchemaNode) return;
+    const displayLabels = getDisplayLabels(n.labels || []);
+    if (displayLabels.length > 0) {
+      displayLabels.forEach((l) => { labelCounts[l] = (labelCounts[l] || 0) + 1; });
+    } else {
+      labelCounts["节点"] = (labelCounts["节点"] || 0) + 1;
+    }
   });
   data.relationships?.forEach((r) => {
     relTypeCounts[r.type] = (relTypeCounts[r.type] || 0) + 1;

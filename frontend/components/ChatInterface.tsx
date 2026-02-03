@@ -15,7 +15,6 @@ import {
   Accordion,
 } from "@chakra-ui/react";
 import ReactMarkdown from "react-markdown";
-import { InlineGraph } from "./ContextGraphView";
 import {
   streamChatMessage,
   getGraphData,
@@ -250,7 +249,9 @@ export function ChatInterface({
                   typeof result.graph_data === "object"
                 ) {
                   const gd = result.graph_data as Record<string, unknown>;
-                  if (gd.nodes && gd.relationships) {
+                  const nodes = gd.nodes as unknown[] | undefined;
+                  const relationships = gd.relationships as unknown[] | undefined;
+                  if (nodes && relationships && nodes.length > 0) {
                     graphData = gd as unknown as GraphData;
                     onGraphUpdate(graphData);
                     foundGraphData = true;
@@ -258,9 +259,12 @@ export function ChatInterface({
                 }
                 // Also check for direct nodes/relationships (legacy format)
                 else if (result.nodes && result.relationships) {
-                  graphData = result as unknown as GraphData;
-                  onGraphUpdate(graphData);
-                  foundGraphData = true;
+                  const gd = result as { nodes: unknown[]; relationships: unknown[] };
+                  if (gd.nodes.length > 0) {
+                    graphData = result as unknown as GraphData;
+                    onGraphUpdate(graphData);
+                    foundGraphData = true;
+                  }
                 }
               }
 
@@ -883,19 +887,11 @@ function ChatMessageBubble({
         </Flex>
       </Box>
 
-      {/* Inline graph visualization */}
+      {/* 图谱已同步至主图，此处仅做简要提示 */}
       {message.graphData && message.graphData.nodes.length > 0 && (
-        <Box mt={2}>
-          <InlineGraph
-            graphData={message.graphData}
-            height="250px"
-            onNodeClick={onNodeClick}
-          />
-          <Text fontSize="xs" color="gray.500" mt={1}>
-            {message.graphData.nodes.length} nodes,{" "}
-            {message.graphData.relationships.length} relationships
-          </Text>
-        </Box>
+        <Text fontSize="xs" color="gray.500" mt={2}>
+          已同步至主图：{message.graphData.nodes.length} 个节点，{message.graphData.relationships.length} 条关系
+        </Text>
       )}
     </Box>
   );

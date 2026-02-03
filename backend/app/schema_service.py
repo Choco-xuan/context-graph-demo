@@ -8,6 +8,9 @@ from typing import Any
 
 from .context_graph_client import context_graph_client
 
+# 领域/基底标签，AI 问答的 schema 摘要中不展示
+DOMAIN_LABELS = frozenset({"GW"})
+
 
 class SchemaService:
     """Caches graph schema and generates summaries for AI prompts."""
@@ -44,8 +47,8 @@ class SchemaService:
 
         lines = []
 
-        # Node labels with counts
-        node_labels = schema.get("node_labels", [])
+        # Node labels with counts（排除领域标签如 GW）
+        node_labels = [l for l in schema.get("node_labels", []) if l not in DOMAIN_LABELS]
         node_counts = schema.get("node_counts", {})
         if node_labels:
             lines.append("## Node Labels (with counts)")
@@ -63,7 +66,7 @@ class SchemaService:
                 count = rel_counts.get(rt, 0)
                 lines.append(f"- {rt}: {count} relationships")
 
-        # Relationship patterns (connectivity)
+        # Relationship patterns (connectivity)，领域标签显示为「节点」
         patterns = schema.get("relationship_patterns", [])
         if patterns:
             lines.append("")
@@ -73,7 +76,9 @@ class SchemaService:
                 rel_type = p.get("rel_type", "?")
                 to_label = p.get("to_label", "?")
                 count = p.get("count", 0)
-                lines.append(f"- ({from_label})-[{rel_type}]->({to_label}): {count}")
+                from_display = "节点" if from_label in DOMAIN_LABELS else from_label
+                to_display = "节点" if to_label in DOMAIN_LABELS else to_label
+                lines.append(f"- ({from_display})-[{rel_type}]->({to_display}): {count}")
 
         # Key property hints (for Cypher query generation)
         prop_keys = schema.get("property_keys", [])

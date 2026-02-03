@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Box, Flex, Heading, IconButton, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, IconButton } from "@chakra-ui/react";
 import { LuPlus, LuMinus, LuChartBar, LuPanelRightClose, LuMessageCircle } from "react-icons/lu";
 import dynamic from "next/dynamic";
 import { FloatingAIAssistant } from "@/components/FloatingAIAssistant";
@@ -99,43 +99,7 @@ export default function Home() {
       display="flex"
       flexDirection="column"
     >
-      {/* 整条顶栏：固定高度，图谱区域在其下方 */}
-      <Flex
-        flexShrink={0}
-        w="100%"
-        h={14}
-        align="center"
-        px={4}
-        bg="blackAlpha.400"
-        borderBottomWidth="1px"
-        borderColor="whiteAlpha.100"
-        backdropFilter="blur(8px)"
-      >
-        <Flex align="center" gap={3}>
-          <Box
-            w={8}
-            h={8}
-            flexShrink={0}
-            borderRadius="md"
-            bg="linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%)"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" strokeWidth="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
-          </Box>
-          <Heading size="sm" color="white" fontWeight="600">
-            本体洞察
-          </Heading>
-          <Text fontSize="xs" color="gray.400">
-            图谱分析看板
-          </Text>
-        </Flex>
-      </Flex>
-
-      {/* 顶栏下方：图谱 | 决策追溯（AI 智能助手悬浮，紧挨决策追溯） */}
+      {/* 图谱 | 决策追溯（AI 智能助手悬浮，紧挨决策追溯） */}
       <Flex flex={1} minH={0} w="100%" direction="row">
         {/* 图谱区域（占满剩余宽度） */}
         <Box flex={1} minH={0} minW={0} position="relative" overflow="hidden">
