@@ -24,6 +24,7 @@ import {
   type Decision,
   type GraphData,
   type AgentContext,
+  type FlowPreviewConfig,
 } from "@/lib/api";
 
 interface ChatInterfaceProps {
@@ -31,6 +32,10 @@ interface ChatInterfaceProps {
   onConversationUpdate: (messages: ChatMessage[]) => void;
   onDecisionSelect: (decision: Decision) => void;
   onGraphUpdate: (data: GraphData) => void;
+  /** 使用已发布的 Flow 配置（提示词 / tools / 模型） */
+  flowId?: string | null;
+  /** 预览模式下的配置，不落库 */
+  flowPreviewConfig?: FlowPreviewConfig | null;
 }
 
 interface ToolCall {
@@ -118,6 +123,8 @@ export function ChatInterface({
   onConversationUpdate,
   onDecisionSelect,
   onGraphUpdate,
+  flowId,
+  flowPreviewConfig,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<MessageWithGraph[]>([]);
   const [input, setInput] = useState("");
@@ -181,9 +188,14 @@ export function ChatInterface({
       let graphData: GraphData | undefined;
       let agentContext: AgentContext | undefined;
 
+      const chatOptions =
+        flowId || flowPreviewConfig
+          ? { flow_id: flowId ?? undefined, flow_preview_config: flowPreviewConfig ?? undefined }
+          : undefined;
       for await (const event of streamChatMessage(
         userMessage.content,
         messages.map((m) => ({ role: m.role, content: m.content })),
+        chatOptions,
       )) {
         switch (event.type) {
           case "agent_context":

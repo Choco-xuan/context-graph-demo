@@ -25,12 +25,16 @@ from sse_starlette.sse import EventSourceResponse
 from .agent import ContextGraphAgent
 from .config import config
 from .context_graph_client import context_graph_client
+from .flow_store import flow_store
 from .schema_service import SchemaService
 from .gds_client import gds_client
 from .models import (
     ChatRequest,
     ChatResponse,
     DecisionRequest,
+    FlowCreate,
+    FlowPreviewConfig,
+    FlowResponse,
     GraphData,
     GraphNode,
     GraphRelationship,
@@ -192,23 +196,49 @@ async def get_chat_suggestions():
         }
 
 
+def _resolve_flow_overrides(
+    flow_id: Optional[str],
+    flow_preview_config: Optional[FlowPreviewConfig],
+) -> tuple[Optional[str], Optional[list[str]], Optional[str]]:
+    """Resolve flow_id or flow_preview_config to (system_prompt, enabled_tools, model_id)."""
+    if flow_preview_config:
+        return (
+            flow_preview_config.system_prompt,
+            flow_preview_config.enabled_tools,
+            flow_preview_config.model_id,
+        )
+    if flow_id:
+        flow = flow_store.get(flow_id)
+        if flow:
+            return flow.system_prompt, flow.enabled_tools, flow.model_id
+    return None, None, None
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
     Send a message to the Claude agent.
     Agent has access to context graph tools.
+    支持 flow_id 或 flow_preview_config 覆盖提示词、tools、模型。
     """
     session_id = request.session_id or str(uuid.uuid4())
     logger.info(f"Chat request received: {request.message[:100]}...")
 
+    prompt_override, tools_override, model_override = _resolve_flow_overrides(
+        request.flow_id, request.flow_preview_config
+    )
+
     try:
-        # Convert conversation history to list of dicts
         history = [
             {"role": msg.role, "content": msg.content} for msg in request.conversation_history
         ]
 
         logger.info("Creating ContextGraphAgent...")
-        async with ContextGraphAgent() as agent:
+        async with ContextGraphAgent(
+            system_prompt_override=prompt_override,
+            enabled_tools_override=tools_override,
+            model_override=model_override,
+        ) as agent:
             logger.info("Agent connected, sending query...")
             result = await agent.query(request.message, conversation_history=history)
             logger.info("Query completed successfully")
@@ -235,15 +265,22 @@ async def chat_stream(request: ChatRequest):
     session_id = request.session_id or str(uuid.uuid4())
     logger.info(f"Stream chat request received: {request.message[:100]}...")
 
+    prompt_override, tools_override, model_override = _resolve_flow_overrides(
+        request.flow_id, request.flow_preview_config
+    )
+
     async def event_generator():
         try:
-            # Convert conversation history to list of dicts
             history = [
                 {"role": msg.role, "content": msg.content} for msg in request.conversation_history
             ]
 
             logger.info("Creating ContextGraphAgent for streaming...")
-            async with ContextGraphAgent() as agent:
+            async with ContextGraphAgent(
+                system_prompt_override=prompt_override,
+                enabled_tools_override=tools_override,
+                model_override=model_override,
+            ) as agent:
                 logger.info("Agent connected, starting stream...")
 
                 # Use an async queue to enable keep-alive pings during long operations
@@ -352,6 +389,78 @@ async def chat_stream(request: ChatRequest):
             }
 
     return EventSourceResponse(event_generator(), ping=20)
+
+
+# ============================================
+# FLOW 创建流程 API（图谱 + 提示词 + tools + 模型）
+# ============================================
+
+
+@app.get("/api/flows", response_model=list[FlowResponse])
+async def list_flows(published_only: bool = False):
+    """列出所有 Flow，可选仅已发布."""
+    return flow_store.list_all(published_only=published_only)
+
+
+@app.post("/api/flows", response_model=FlowResponse)
+async def create_flow(body: FlowCreate):
+    """创建新 Flow（草稿），可后续预览、发布."""
+    return flow_store.create(body)
+
+
+@app.get("/api/flows/{flow_id}", response_model=FlowResponse)
+async def get_flow(flow_id: str):
+    """获取单个 Flow."""
+    flow = flow_store.get(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    return flow
+
+
+@app.get("/api/flows/by-slug/{slug}", response_model=FlowResponse)
+async def get_flow_by_slug(slug: str):
+    """通过 slug 获取已发布的 Flow（用于分享链接）."""
+    flow = flow_store.get_by_slug(slug)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    if not flow.published:
+        raise HTTPException(status_code=404, detail="Flow not published")
+    return flow
+
+
+@app.put("/api/flows/{flow_id}", response_model=FlowResponse)
+async def update_flow(flow_id: str, body: FlowCreate):
+    """更新 Flow 配置."""
+    flow = flow_store.update(flow_id, body)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    return flow
+
+
+@app.patch("/api/flows/{flow_id}/publish", response_model=FlowResponse)
+async def publish_flow(flow_id: str):
+    """发布 Flow，发布后可通过 slug 或 flow_id 使用."""
+    flow = flow_store.publish(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    return flow
+
+
+@app.patch("/api/flows/{flow_id}/unpublish", response_model=FlowResponse)
+async def unpublish_flow(flow_id: str):
+    """取消发布."""
+    flow = flow_store.unpublish(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    return flow
+
+
+@app.delete("/api/flows/{flow_id}")
+async def delete_flow(flow_id: str):
+    """删除 Flow."""
+    if not flow_store.delete(flow_id):
+        raise HTTPException(status_code=404, detail="Flow not found")
+    return {"ok": True}
 
 
 # ============================================
@@ -509,6 +618,21 @@ async def get_policy(policy_id: str):
 # ============================================
 # GRAPH VISUALIZATION ENDPOINTS
 # ============================================
+
+
+@app.get("/api/graph/sources")
+async def list_graph_sources():
+    """列出可选图谱数据源，供创建流程「选择图谱数据」使用。"""
+    return {
+        "sources": [
+            {
+                "id": "default",
+                "name": "默认图谱",
+                "database": config.neo4j.database,
+                "description": "当前连接的 Neo4j 数据库",
+            }
+        ]
+    }
 
 
 @app.get("/api/graph", response_model=GraphData)

@@ -401,30 +401,53 @@ def create_context_graph_server():
     )
 
 
-def get_agent_options() -> ClaudeAgentOptions:
-    """Get the agent options with context graph server configured."""
+# Flow 覆盖：将短工具名转为 MCP 全名
+TOOL_TO_MCP = {
+    "get_schema": "mcp__graph__get_schema",
+    "explore_nodes": "mcp__graph__explore_nodes",
+    "search_nodes": "mcp__graph__search_nodes",
+    "find_paths": "mcp__graph__find_paths",
+    "analyze_patterns": "mcp__graph__analyze_patterns",
+    "execute_cypher": "mcp__graph__execute_cypher",
+}
+
+
+def _allowed_tools_from_enabled(enabled: list[str] | None) -> list[str]:
+    """从启用的短工具名列表得到 MCP allowed_tools；None 表示全部启用."""
+    if not enabled:
+        return list(TOOL_TO_MCP.values())
+    return [TOOL_TO_MCP[t] for t in enabled if t in TOOL_TO_MCP]
+
+
+def get_agent_options(
+    *,
+    system_prompt_override: str | None = None,
+    enabled_tools_override: list[str] | None = None,
+    model_override: str | None = None,
+) -> ClaudeAgentOptions:
+    """Get the agent options, optionally overridden by Flow 配置."""
     context_graph_server = create_context_graph_server()
 
-    # Set environment variables for custom base URL if configured
-    # claude-agent-sdk reads ANTHROPIC_BASE_URL from environment
     if config.anthropic.base_url:
         os.environ["ANTHROPIC_BASE_URL"] = config.anthropic.base_url
-        # If using a proxy, ensure API key is set correctly
         if config.anthropic.api_key:
             os.environ["ANTHROPIC_API_KEY"] = config.anthropic.api_key
 
-    return ClaudeAgentOptions(
-        system_prompt=build_system_prompt(),
-        mcp_servers={"graph": context_graph_server},
-        allowed_tools=[
-            "mcp__graph__get_schema",
-            "mcp__graph__explore_nodes",
-            "mcp__graph__search_nodes",
-            "mcp__graph__find_paths",
-            "mcp__graph__analyze_patterns",
-            "mcp__graph__execute_cypher",
-        ],
+    system_prompt = (
+        system_prompt_override
+        if system_prompt_override is not None and system_prompt_override.strip() != ""
+        else build_system_prompt()
     )
+    allowed_tools = _allowed_tools_from_enabled(enabled_tools_override)
+
+    opts = ClaudeAgentOptions(
+        system_prompt=system_prompt,
+        mcp_servers={"graph": context_graph_server},
+        allowed_tools=allowed_tools,
+    )
+    if model_override:
+        opts.model = model_override
+    return opts
 
 
 # ============================================
@@ -441,12 +464,22 @@ AVAILABLE_TOOLS = [
 ]
 
 
-def get_agent_context() -> dict[str, Any]:
+def get_agent_context(
+    system_prompt_override: str | None = None,
+    enabled_tools_override: list[str] | None = None,
+    model_override: str | None = None,
+) -> dict[str, Any]:
     """Get agent context information for transparency/debugging."""
+    prompt = (
+        system_prompt_override.strip()
+        if system_prompt_override and system_prompt_override.strip()
+        else build_system_prompt()
+    )
+    tools = enabled_tools_override if enabled_tools_override else AVAILABLE_TOOLS
     return {
-        "system_prompt": build_system_prompt(),
-        "model": "claude-sonnet-4-20250514",
-        "available_tools": AVAILABLE_TOOLS,
+        "system_prompt": prompt,
+        "model": model_override or "claude-sonnet-4-20250514",
+        "available_tools": tools,
         "mcp_server": "context-graph",
     }
 
@@ -459,8 +492,21 @@ def get_agent_context() -> dict[str, Any]:
 class ContextGraphAgent:
     """Wrapper for managing Claude Agent SDK sessions."""
 
-    def __init__(self):
-        self.options = get_agent_options()
+    def __init__(
+        self,
+        *,
+        system_prompt_override: str | None = None,
+        enabled_tools_override: list[str] | None = None,
+        model_override: str | None = None,
+    ):
+        self._system_prompt_override = system_prompt_override
+        self._enabled_tools_override = enabled_tools_override
+        self._model_override = model_override
+        self.options = get_agent_options(
+            system_prompt_override=system_prompt_override,
+            enabled_tools_override=enabled_tools_override,
+            model_override=model_override,
+        )
         self.client: ClaudeSDKClient | None = None
 
     async def __aenter__(self):
@@ -544,8 +590,15 @@ Please respond to the current message, taking the conversation history into acco
         else:
             full_message = message
 
-        # Emit agent context first
-        yield {"type": "agent_context", "context": get_agent_context()}
+        # Emit agent context first (with same overrides as this session)
+        yield {
+            "type": "agent_context",
+            "context": get_agent_context(
+                system_prompt_override=self._system_prompt_override,
+                enabled_tools_override=self._enabled_tools_override,
+                model_override=self._model_override,
+            ),
+        }
 
         # Send the message
         await self.client.query(full_message)

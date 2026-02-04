@@ -77,6 +77,77 @@ export interface ChatResponse {
   decisions_made: string[];
 }
 
+// Flow 创建流程（图谱 + 提示词 + tools + 模型）
+export interface GraphSource {
+  id: string;
+  name: string;
+  database?: string;
+  description?: string;
+}
+
+export interface FlowCreatePayload {
+  name: string;
+  graph_source_id?: string;
+  system_prompt?: string | null;
+  enabled_tools?: string[];
+  model_id?: string;
+}
+
+export interface Flow {
+  id: string;
+  name: string;
+  graph_source_id: string;
+  system_prompt: string | null;
+  enabled_tools: string[];
+  model_id: string;
+  published: boolean;
+  slug: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** 预览模式下的配置，不落库 */
+export interface FlowPreviewConfig {
+  graph_source_id?: string;
+  system_prompt?: string | null;
+  enabled_tools?: string[] | null;
+  model_id?: string | null;
+}
+
+export async function getGraphSources(): Promise<GraphSource[]> {
+  const res = await api.get<{ sources: GraphSource[] }>("/api/graph/sources");
+  return res.data.sources || [];
+}
+
+export async function createFlow(body: FlowCreatePayload): Promise<Flow> {
+  const res = await api.post<Flow>("/api/flows", body);
+  return res.data;
+}
+
+export async function listFlows(publishedOnly = false): Promise<Flow[]> {
+  const res = await api.get<Flow[]>("/api/flows", { params: { published_only: publishedOnly } });
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function getFlow(id: string): Promise<Flow> {
+  const res = await api.get<Flow>(`/api/flows/${id}`);
+  return res.data;
+}
+
+export async function updateFlow(id: string, body: FlowCreatePayload): Promise<Flow> {
+  const res = await api.put<Flow>(`/api/flows/${id}`, body);
+  return res.data;
+}
+
+export async function publishFlow(id: string): Promise<Flow> {
+  const res = await api.patch<Flow>(`/api/flows/${id}/publish`);
+  return res.data;
+}
+
+export async function deleteFlow(id: string): Promise<void> {
+  await api.delete(`/api/flows/${id}`);
+}
+
 export async function getChatSuggestions(): Promise<string[]> {
   const response = await api.get<{ suggestions: string[] }>("/api/chat/suggestions");
   return response.data.suggestions || [];
@@ -97,15 +168,19 @@ export interface CausalChain {
 
 // API Functions
 
-// Chat
+// Chat（支持 flow_id 或 flow_preview_config 覆盖提示词/tools/模型）
 export async function sendChatMessage(
   message: string,
   conversationHistory: ChatMessage[] = [],
+  options?: { flow_id?: string; flow_preview_config?: FlowPreviewConfig },
 ): Promise<ChatResponse> {
-  const response = await api.post("/api/chat", {
+  const body: Record<string, unknown> = {
     message,
     conversation_history: conversationHistory,
-  });
+  };
+  if (options?.flow_id) body.flow_id = options.flow_id;
+  if (options?.flow_preview_config) body.flow_preview_config = options.flow_preview_config;
+  const response = await api.post("/api/chat", body);
   return response.data;
 }
 
@@ -163,20 +238,24 @@ export type StreamEvent =
   | StreamDoneEvent
   | StreamErrorEvent;
 
-// Streaming chat with SSE
+// Streaming chat with SSE（支持 flow_id / flow_preview_config）
 export async function* streamChatMessage(
   message: string,
   conversationHistory: ChatMessage[] = [],
+  options?: { flow_id?: string; flow_preview_config?: FlowPreviewConfig },
 ): AsyncGenerator<StreamEvent, void, unknown> {
+  const body: Record<string, unknown> = {
+    message,
+    conversation_history: conversationHistory,
+  };
+  if (options?.flow_id) body.flow_id = options.flow_id;
+  if (options?.flow_preview_config) body.flow_preview_config = options.flow_preview_config;
   const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      message,
-      conversation_history: conversationHistory,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

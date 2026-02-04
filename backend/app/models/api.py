@@ -2,6 +2,8 @@
 Pydantic models for API requests and responses.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Optional
 
@@ -21,6 +23,10 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     conversation_history: list[ConversationMessage] = Field(default_factory=list)
+    flow_id: Optional[str] = Field(default=None, description="使用已发布的 Flow 配置")
+    flow_preview_config: Optional["FlowPreviewConfig"] = Field(
+        default=None, description="预览模式下的配置，不落库"
+    )
 
 
 class ToolCall(BaseModel):
@@ -123,3 +129,59 @@ class CommunityInfo(BaseModel):
     decision_types: list[str]
     categories: list[str]
     top_decisions: list[str] = Field(default_factory=list)
+
+
+# ============== Flow / Agent 创建流程 ==============
+
+
+class FlowCreate(BaseModel):
+    """创建或更新 Flow 的请求体：图谱 + 提示词 + tools + 模型."""
+
+    name: str = Field(..., min_length=1, max_length=200, description="流程名称")
+    graph_source_id: str = Field(
+        default="default",
+        description="图谱数据源 ID，如 default 表示当前 Neo4j 数据库",
+    )
+    system_prompt: Optional[str] = Field(
+        default=None,
+        description="自定义系统提示词，空则使用基于 schema 的默认提示",
+    )
+    enabled_tools: list[str] = Field(
+        default_factory=lambda: [
+            "get_schema",
+            "explore_nodes",
+            "search_nodes",
+            "find_paths",
+            "analyze_patterns",
+            "execute_cypher",
+        ],
+        description="启用的 MCP 工具名列表",
+    )
+    model_id: str = Field(
+        default="claude-sonnet-4-20250514",
+        description="模型 ID，如 claude-sonnet-4-20250514、deepseek-chat",
+    )
+
+
+class FlowResponse(BaseModel):
+    """Flow 的 API 响应."""
+
+    id: str
+    name: str
+    graph_source_id: str
+    system_prompt: Optional[str] = None
+    enabled_tools: list[str]
+    model_id: str
+    published: bool = False
+    slug: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class FlowPreviewConfig(BaseModel):
+    """聊天请求中用于「预览」的配置，不落库."""
+
+    graph_source_id: Optional[str] = None
+    system_prompt: Optional[str] = None
+    enabled_tools: Optional[list[str]] = None
+    model_id: Optional[str] = None

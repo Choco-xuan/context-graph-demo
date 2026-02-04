@@ -1,271 +1,154 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { Box, Flex, Heading, IconButton } from "@chakra-ui/react";
-import { LuPlus, LuMinus, LuChartBar, LuPanelRightClose, LuMessageCircle } from "react-icons/lu";
-import dynamic from "next/dynamic";
-import { FloatingAIAssistant } from "@/components/FloatingAIAssistant";
-import { DecisionTracePanel } from "@/components/DecisionTracePanel";
-import {
-  getGraphData,
-  type Decision,
-  type GraphData,
-  type GraphNode,
-  type ChatMessage,
-} from "@/lib/api";
-
-function graphNodeToDecision(node: GraphNode): Decision {
-  const props = node.properties;
-  return {
-    id: (props.id as string) || node.id,
-    decision_type: (props.decision_type as string) || "unknown",
-    category: (props.category as string) || "unknown",
-    reasoning: (props.reasoning as string) || "",
-    reasoning_summary: props.reasoning_summary as string | undefined,
-    confidence_score: props.confidence_score as number | undefined,
-    risk_factors: (props.risk_factors as string[]) || [],
-    status: (props.status as string) || "unknown",
-    decision_timestamp: props.decision_timestamp as string | undefined,
-    timestamp: props.decision_timestamp as string | undefined,
-  };
-}
-
-const ContextGraphView = dynamic(
-  () =>
-    import("@/components/ContextGraphView").then((mod) => mod.ContextGraphView),
-  { ssr: false },
-);
-
-type ContextGraphViewRef = { zoomIn: () => void; zoomOut: () => void };
-
-const DRAWER_WIDTH = 380;
+import { useState, useEffect, useCallback } from "react";
+import { Box, Flex, Heading, Text, Spinner, SimpleGrid } from "@chakra-ui/react";
+import NextLink from "next/link";
+import { LuTrash2 } from "react-icons/lu";
+import { listFlows, deleteFlow, type Flow } from "@/lib/api";
 
 export default function Home() {
-  const [selectedDecision, setSelectedDecision] = useState<Decision | null>(
-    null,
-  );
-  const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [graphDecisions, setGraphDecisions] = useState<Decision[]>([]);
-  const [conversationHistory, setConversationHistory] = useState<
-    ChatMessage[]
-  >([]);
-  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [insightFilter, setInsightFilter] = useState<{
-    label?: string;
-    relType?: string;
-  } | null>(null);
-  const graphRef = useRef<ContextGraphViewRef | null>(null);
+  const [flows, setFlows] = useState<Flow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getGraphData(undefined, 2, undefined, 0)
-      .then(setGraphData)
-      .catch(() => {});
+    setLoading(true);
+    setError(null);
+    listFlows(true)
+      .then(setFlows)
+      .catch(() => setError("加载列表失败"))
+      .finally(() => setLoading(false));
   }, []);
 
-  // 图谱数据更新时清除洞察筛选，避免筛选条件与数据不匹配
-  useEffect(() => {
-    setInsightFilter(null);
-  }, [graphData]);
+  const viewUrl = (id: string) => `/view?uuid=${id}`;
 
-  const handleDecisionSelect = useCallback((decision: Decision) => {
-    setSelectedDecision(decision);
-    setDrawerOpen(true);
-  }, []);
-
-  const handleGraphUpdate = useCallback((data: GraphData) => {
-    setGraphData(data);
-  }, []);
-
-  const handleDecisionNodesChange = useCallback(
-    (decisionNodes: GraphNode[]) => {
-      setGraphDecisions(decisionNodes.map(graphNodeToDecision));
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent, flowId: string, flowName: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm(`确定要删除洞察"${flowName}"吗？此操作不可恢复。`)) {
+        return;
+      }
+      try {
+        await deleteFlow(flowId);
+        // 删除成功后刷新列表
+        setFlows((prev) => prev.filter((f) => f.id !== flowId));
+      } catch (err) {
+        alert(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
+      }
     },
     [],
   );
 
-  const handleDecisionNodeClick = useCallback((node: GraphNode) => {
-    setSelectedDecision(graphNodeToDecision(node));
-    setDrawerOpen(true);
-  }, []);
-
   return (
-    <Box
-      h="100vh"
-      minH={0}
-      w="100vw"
-      overflow="hidden"
-      bg="#0a0e17"
-      display="flex"
-      flexDirection="column"
-    >
-      {/* 图谱 | 决策追溯（AI 智能助手悬浮，紧挨决策追溯） */}
-      <Flex flex={1} minH={0} w="100%" direction="row">
-        {/* 图谱区域（占满剩余宽度） */}
-        <Box flex={1} minH={0} minW={0} position="relative" overflow="hidden">
-          <Box position="absolute" inset={0} zIndex={0}>
-            <ContextGraphView
-              innerRef={graphRef}
-              graphData={graphData}
-              onNodeClick={() => {}}
-              onDecisionNodesChange={handleDecisionNodesChange}
-              onDecisionNodeClick={handleDecisionNodeClick}
-              selectedNodeId={selectedDecision?.id}
-              height="100%"
-              showLegend={true}
-              highlightLabel={insightFilter?.label ?? null}
-              highlightRelType={insightFilter?.relType ?? null}
-            />
-          </Box>
-
-          {/* 左下角 - 缩放控制（圆形按钮） */}
-          <Flex
-            position="absolute"
-            bottom={6}
-            left={6}
-            zIndex={10}
-            gap={2}
-            align="center"
-            p={1}
-            borderRadius="full"
-            bg="blackAlpha.400"
-            borderWidth="1px"
-            borderColor="whiteAlpha.200"
-            backdropFilter="blur(8px)"
-          >
-            <IconButton
-              aria-label="缩小"
-              size="lg"
-              borderRadius="full"
-              bg="whiteAlpha.100"
-              color="white"
-              borderWidth="1px"
-              borderColor="whiteAlpha.200"
-              _hover={{ bg: "whiteAlpha.200" }}
-              onClick={() => graphRef.current?.zoomOut()}
-            >
-              <LuMinus />
-            </IconButton>
-            <IconButton
-              aria-label="放大"
-              size="lg"
-              borderRadius="full"
-              bg="whiteAlpha.100"
-              color="white"
-              borderWidth="1px"
-              borderColor="whiteAlpha.200"
-              _hover={{ bg: "whiteAlpha.200" }}
-              onClick={() => graphRef.current?.zoomIn()}
-            >
-              <LuPlus />
-            </IconButton>
-          </Flex>
-
-          {/* 右下角 - 打开 AI 助手 / 打开决策追溯 */}
-          <Flex
-            position="absolute"
-            bottom={6}
-            right={6}
-            zIndex={10}
-            gap={3}
-            align="center"
-          >
-            {!aiAssistantOpen && (
-              <IconButton
-                aria-label="打开 AI 智能助手"
-                size="xl"
-                w={12}
-                h={12}
-                borderRadius="xl"
-                bg="green.600"
-                color="white"
-                borderWidth="1px"
-                borderColor="green.500"
-                _hover={{ bg: "green.500" }}
-                onClick={() => setAiAssistantOpen(true)}
-              >
-                <LuMessageCircle />
-              </IconButton>
-            )}
-            <IconButton
-              aria-label={drawerOpen ? "关闭决策追溯" : "打开决策追溯"}
-              size="xl"
-              w={12}
-              h={12}
-              borderRadius="xl"
-              bg="orange.500"
-              color="white"
-              borderWidth="1px"
-              borderColor="orange.400"
-              _hover={{ bg: "orange.400" }}
-              onClick={() => setDrawerOpen((o) => !o)}
-            >
-              <LuChartBar />
-            </IconButton>
-          </Flex>
-        </Box>
-
-        {/* 决策追溯 - 布局内右侧栏 */}
-        <Box
-          w={drawerOpen ? DRAWER_WIDTH : 0}
-          flexShrink={0}
-          overflow="hidden"
-          transition="width 0.25s ease-out"
-          display="flex"
-          flexDirection="column"
-          bg="blackAlpha.700"
-          backdropFilter="blur(12px)"
-          borderLeftWidth={drawerOpen ? "1px" : 0}
-          borderColor="whiteAlpha.200"
-        >
-          <Flex
-            align="center"
-            justify="space-between"
-            px={4}
-            py={3}
-            borderBottomWidth="1px"
-            borderColor="whiteAlpha.100"
-            flexShrink={0}
-          >
-            <Heading size="sm" color="gray.100">
-              决策追溯
-            </Heading>
-            <IconButton
-              aria-label="关闭"
-              size="sm"
-              variant="ghost"
-              colorPalette="gray"
-              color="gray.400"
-              _hover={{ color: "cyan.400" }}
-              onClick={() => setDrawerOpen(false)}
-            >
-              <LuPanelRightClose />
-            </IconButton>
-          </Flex>
-          <Box flex={1} minH={0} overflow="auto">
-            <DecisionTracePanel
-              decision={selectedDecision}
-              onDecisionSelect={handleDecisionSelect}
-              graphDecisions={graphDecisions}
-              graphData={graphData}
-              insightFilter={insightFilter}
-              onInsightFilterChange={setInsightFilter}
-            />
-          </Box>
-        </Box>
+    <Box minH="100vh" bg="#0a0e17" color="gray.100" p={6}>
+      <Flex justify="space-between" align="center" mb={8}>
+        <Heading size="lg">洞察列表</Heading>
+        <NextLink href="/create">
+          <Text color="blue.300" cursor="pointer" _hover={{ color: "blue.200" }}>
+            创建洞察
+          </Text>
+        </NextLink>
       </Flex>
 
-      {/* AI 智能助手 - 悬浮，展开位置固定，紧挨决策追溯（在决策追溯左侧） */}
-      <FloatingAIAssistant
-        open={aiAssistantOpen}
-        onOpenChange={setAiAssistantOpen}
-        conversationHistory={conversationHistory}
-        onConversationUpdate={setConversationHistory}
-        onDecisionSelect={handleDecisionSelect}
-        onGraphUpdate={handleGraphUpdate}
-        decisionTraceOpen={drawerOpen}
-        decisionTraceWidth={DRAWER_WIDTH}
-      />
+      <Text fontSize="sm" color="gray.400" mb={6}>
+        点击任意洞察进入图谱可视化与 AI 对话面板
+      </Text>
+
+      {loading && (
+        <Flex justify="center" py={12}>
+          <Spinner size="lg" color="blue.400" />
+        </Flex>
+      )}
+
+      {error && (
+        <Text color="red.300" py={4}>
+          {error}
+        </Text>
+      )}
+
+      {!loading && !error && flows.length === 0 && (
+        <Text color="gray.400" py={8}>
+          暂无已发布的洞察，请先
+          <NextLink href="/create">
+            <Text as="span" color="blue.300" cursor="pointer" ml={1}>
+              创建并发布
+            </Text>
+          </NextLink>
+        </Text>
+      )}
+
+      {!loading && !error && flows.length > 0 && (
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={4}>
+          {flows.map((flow) => (
+            <Box
+              key={flow.id}
+              position="relative"
+              borderRadius="lg"
+              bg="whiteAlpha.50"
+              borderWidth="1px"
+              borderColor="whiteAlpha.100"
+              boxShadow="sm"
+              _hover={{
+                borderColor: "blue.400",
+                boxShadow: "md",
+                transform: "translateY(-1px)",
+                bg: "whiteAlpha.100",
+              }}
+              transition="all 0.2s"
+              h="full"
+            >
+              <NextLink href={viewUrl(flow.id)}>
+                <Box
+                  p={5}
+                  cursor="pointer"
+                  h="full"
+                  display="flex"
+                  flexDirection="column"
+                >
+                  <Flex justify="space-between" align="start" mb={2}>
+                    <Heading size="sm" color="gray.50" fontWeight="medium">
+                      {flow.name}
+                    </Heading>
+                  </Flex>
+                  <Text fontSize="xs" color="gray.400" mb={3}>
+                    模型: {flow.model_id}
+                  </Text>
+                  <Text fontSize="sm" color="gray.500" mt="auto">
+                    {flow.enabled_tools?.length ?? 0} 个工具 · 点击进入可视化
+                  </Text>
+                </Box>
+              </NextLink>
+              <Box
+                as="button"
+                aria-label="删除洞察"
+                position="absolute"
+                top={3}
+                right={3}
+                color="blue.400"
+                opacity={0.7}
+                _hover={{
+                  color: "blue.200",
+                  opacity: 1,
+                  transform: "scale(1.1)",
+                }}
+                onClick={(e) => handleDelete(e, flow.id, flow.name)}
+                zIndex={20}
+                transition="all 0.2s"
+                cursor="pointer"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "4px",
+                }}
+              >
+                <LuTrash2 size={18} />
+              </Box>
+            </Box>
+          ))}
+        </SimpleGrid>
+      )}
     </Box>
   );
 }

@@ -10,7 +10,7 @@ import {
 } from "@chakra-ui/react";
 import { LuX } from "react-icons/lu";
 import { ChatInterface } from "./ChatInterface";
-import type { Decision, GraphData, ChatMessage } from "@/lib/api";
+import type { Decision, GraphData, ChatMessage, FlowPreviewConfig } from "@/lib/api";
 
 interface FloatingAIAssistantProps {
   open: boolean;
@@ -22,6 +22,9 @@ interface FloatingAIAssistantProps {
   /** 决策追溯打开时，悬浮面板紧挨其左侧，中间无间隙 */
   decisionTraceOpen?: boolean;
   decisionTraceWidth?: number;
+  /** 使用已发布的 Flow 配置 */
+  flowId?: string | null;
+  flowPreviewConfig?: FlowPreviewConfig | null;
 }
 
 /** 与决策追溯面板宽度一致 */
@@ -40,6 +43,8 @@ export function FloatingAIAssistant({
   onGraphUpdate,
   decisionTraceOpen = false,
   decisionTraceWidth = 0,
+  flowId,
+  flowPreviewConfig,
 }: FloatingAIAssistantProps) {
   const rightOffset = decisionTraceOpen ? decisionTraceWidth : FIXED_GAP;
 
@@ -107,6 +112,8 @@ export function FloatingAIAssistant({
           onConversationUpdate={onConversationUpdate}
           onDecisionSelect={onDecisionSelect}
           onGraphUpdate={onGraphUpdate}
+          flowId={flowId}
+          flowPreviewConfig={flowPreviewConfig}
         />
       </Box>
     </Box>
