@@ -14,6 +14,7 @@ dependencies = [
     "faker>=33.0.0",
     "httpx>=0.28.0",
     "sse-starlette>=2.0.0",
+    "pymysql>=1.1.0",
 ]
 
 [project.optional-dependencies]

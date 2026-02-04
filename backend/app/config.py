@@ -73,12 +73,34 @@ class AnthropicConfig:
 
 
 @dataclass
+class MySQLConfig:
+    """MySQL database configuration for Flow storage."""
+
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
+
+    @classmethod
+    def from_env(cls) -> "MySQLConfig":
+        return cls(
+            host=os.getenv("MYSQL_HOST", "10.156.196.228"),
+            port=int(os.getenv("MYSQL_PORT", "3306")),
+            database=os.getenv("MYSQL_DATABASE", "insight"),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", "root"),
+        )
+
+
+@dataclass
 class AppConfig:
     """Main application configuration."""
 
     neo4j: Neo4jConfig
     openai: OpenAIConfig
     anthropic: AnthropicConfig
+    mysql: MySQLConfig
 
     # FastRP embedding dimensions (structural)
     fastrp_dimensions: int = 128
@@ -102,6 +124,7 @@ class AppConfig:
             neo4j=Neo4jConfig.from_env(),
             openai=OpenAIConfig.from_env(),
             anthropic=AnthropicConfig.from_env(),
+            mysql=MySQLConfig.from_env(),
             fastrp_dimensions=int(os.getenv("FASTRP_DIMENSIONS", "128")),
             host=os.getenv("HOST", "0.0.0.0"),
             port=int(os.getenv("PORT", "8000")),
