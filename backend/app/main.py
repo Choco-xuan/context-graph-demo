@@ -399,68 +399,158 @@ async def chat_stream(request: ChatRequest):
 @app.get("/api/flows", response_model=list[FlowResponse])
 async def list_flows(published_only: bool = False):
     """列出所有 Flow，可选仅已发布."""
-    return flow_store.list_all(published_only=published_only)
+    try:
+        return flow_store.list_all(published_only=published_only)
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error listing flows: {e}")
+        raise HTTPException(status_code=500, detail=f"获取列表失败: {str(e)}")
 
 
 @app.post("/api/flows", response_model=FlowResponse)
 async def create_flow(body: FlowCreate):
     """创建新 Flow（草稿），可后续预览、发布."""
-    return flow_store.create(body)
+    try:
+        return flow_store.create(body)
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error creating flow: {e}")
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
 
 
 @app.get("/api/flows/{flow_id}", response_model=FlowResponse)
 async def get_flow(flow_id: str):
     """获取单个 Flow."""
-    flow = flow_store.get(flow_id)
-    if not flow:
-        raise HTTPException(status_code=404, detail="Flow not found")
-    return flow
+    try:
+        flow = flow_store.get(flow_id)
+        if not flow:
+            raise HTTPException(status_code=404, detail="Flow not found")
+        return flow
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error getting flow: {e}")
+        raise HTTPException(status_code=500, detail=f"获取失败: {str(e)}")
 
 
 @app.get("/api/flows/by-slug/{slug}", response_model=FlowResponse)
 async def get_flow_by_slug(slug: str):
     """通过 slug 获取已发布的 Flow（用于分享链接）."""
-    flow = flow_store.get_by_slug(slug)
-    if not flow:
-        raise HTTPException(status_code=404, detail="Flow not found")
-    if not flow.published:
-        raise HTTPException(status_code=404, detail="Flow not published")
-    return flow
+    try:
+        flow = flow_store.get_by_slug(slug)
+        if not flow:
+            raise HTTPException(status_code=404, detail="Flow not found")
+        if not flow.published:
+            raise HTTPException(status_code=404, detail="Flow not published")
+        return flow
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error getting flow by slug: {e}")
+        raise HTTPException(status_code=500, detail=f"获取失败: {str(e)}")
 
 
 @app.put("/api/flows/{flow_id}", response_model=FlowResponse)
 async def update_flow(flow_id: str, body: FlowCreate):
     """更新 Flow 配置."""
-    flow = flow_store.update(flow_id, body)
-    if not flow:
-        raise HTTPException(status_code=404, detail="Flow not found")
-    return flow
+    try:
+        flow = flow_store.update(flow_id, body)
+        if not flow:
+            raise HTTPException(status_code=404, detail="Flow not found")
+        return flow
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error updating flow: {e}")
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
 
 
 @app.patch("/api/flows/{flow_id}/publish", response_model=FlowResponse)
 async def publish_flow(flow_id: str):
     """发布 Flow，发布后可通过 slug 或 flow_id 使用."""
-    flow = flow_store.publish(flow_id)
-    if not flow:
-        raise HTTPException(status_code=404, detail="Flow not found")
-    return flow
+    try:
+        # 先检查 Flow 是否存在
+        existing_flow = flow_store.get(flow_id)
+        if not existing_flow:
+            logger.warning(f"尝试发布不存在的 Flow ID: {flow_id}")
+            raise HTTPException(status_code=404, detail=f"Flow not found: {flow_id}")
+        
+        # 执行发布
+        flow = flow_store.publish(flow_id)
+        if not flow:
+            logger.error(f"发布 Flow 失败，UPDATE 未影响任何行: {flow_id}")
+            raise HTTPException(status_code=404, detail=f"Flow not found after publish attempt: {flow_id}")
+        return flow
+    except HTTPException:
+        raise
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error publishing flow: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"发布失败: {str(e)}")
 
 
 @app.patch("/api/flows/{flow_id}/unpublish", response_model=FlowResponse)
 async def unpublish_flow(flow_id: str):
     """取消发布."""
-    flow = flow_store.unpublish(flow_id)
-    if not flow:
-        raise HTTPException(status_code=404, detail="Flow not found")
-    return flow
+    try:
+        flow = flow_store.unpublish(flow_id)
+        if not flow:
+            raise HTTPException(status_code=404, detail="Flow not found")
+        return flow
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error unpublishing flow: {e}")
+        raise HTTPException(status_code=500, detail=f"取消发布失败: {str(e)}")
 
 
 @app.delete("/api/flows/{flow_id}")
 async def delete_flow(flow_id: str):
     """删除 Flow."""
-    if not flow_store.delete(flow_id):
-        raise HTTPException(status_code=404, detail="Flow not found")
-    return {"ok": True}
+    try:
+        if not flow_store.delete(flow_id):
+            raise HTTPException(status_code=404, detail="Flow not found")
+        return {"ok": True}
+    except ConnectionError as e:
+        logger.error(f"MySQL connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="数据库连接失败，请检查 MySQL 服务是否正常运行"
+        )
+    except Exception as e:
+        logger.error(f"Error deleting flow: {e}")
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
 
 
 # ============================================

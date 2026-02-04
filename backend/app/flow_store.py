@@ -24,15 +24,30 @@ def _make_slug(name: str) -> str:
 
 def _get_connection():
     """获取 MySQL 数据库连接."""
-    return pymysql.connect(
-        host=config.mysql.host,
-        port=config.mysql.port,
-        user=config.mysql.user,
-        password=config.mysql.password,
-        database=config.mysql.database,
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+    try:
+        return pymysql.connect(
+            host=config.mysql.host,
+            port=config.mysql.port,
+            user=config.mysql.user,
+            password=config.mysql.password,
+            database=config.mysql.database,
+            charset="utf8mb4",
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=10,  # 10秒连接超时
+            read_timeout=30,  # 30秒读取超时
+            write_timeout=30,  # 30秒写入超时
+        )
+    except Error as e:
+        error_msg = (
+            f"无法连接到 MySQL 数据库 ({config.mysql.host}:{config.mysql.port}). "
+            f"请检查：\n"
+            f"1. MySQL 服务器是否运行\n"
+            f"2. 网络连接是否正常\n"
+            f"3. 防火墙设置是否正确\n"
+            f"4. 连接配置是否正确\n"
+            f"错误详情: {e}"
+        )
+        raise ConnectionError(error_msg) from e
 
 
 def _ensure_table_exists():
@@ -61,8 +76,9 @@ def _ensure_table_exists():
             conn.commit()
         finally:
             conn.close()
-    except Error as e:
-        print(f"Error creating flows table: {e}")
+    except (Error, ConnectionError) as e:
+        print(f"警告: 无法连接到 MySQL 数据库，flows 表创建失败: {e}")
+        print("提示: 请检查 MySQL 连接配置或确保数据库服务正在运行")
 
 
 class FlowStore:
@@ -121,6 +137,7 @@ class FlowStore:
                 cursor.execute("SELECT * FROM flows WHERE id = %s", (flow_id,))
                 row = cursor.fetchone()
                 if not row:
+                    print(f"警告: 未找到 Flow ID: {flow_id}")
                     return None
                 return self._row_to_response(row)
         finally:
@@ -184,12 +201,17 @@ class FlowStore:
                     flow_id,
                 ))
                 if cursor.rowcount == 0:
+                    print(f"警告: 尝试更新不存在的 Flow ID: {flow_id}")
                     return None
             conn.commit()
         finally:
             conn.close()
 
-        return self.get(flow_id)
+        # 获取更新后的 Flow
+        result = self.get(flow_id)
+        if result is None:
+            print(f"警告: 更新成功但无法获取 Flow ID: {flow_id}")
+        return result
 
     def publish(self, flow_id: str) -> Optional[FlowResponse]:
         """发布 Flow."""
@@ -202,12 +224,18 @@ class FlowStore:
                     (now, flow_id),
                 )
                 if cursor.rowcount == 0:
+                    # 记录警告：尝试发布不存在的 Flow
+                    print(f"警告: 尝试发布不存在的 Flow ID: {flow_id}")
                     return None
             conn.commit()
         finally:
             conn.close()
 
-        return self.get(flow_id)
+        # 获取更新后的 Flow
+        result = self.get(flow_id)
+        if result is None:
+            print(f"警告: 发布成功但无法获取 Flow ID: {flow_id}")
+        return result
 
     def unpublish(self, flow_id: str) -> Optional[FlowResponse]:
         """取消发布 Flow."""
