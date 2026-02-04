@@ -25,12 +25,36 @@ import {
 } from "@/lib/api";
 
 const FLOW_TOOLS = [
-  "get_schema",
-  "explore_nodes",
-  "search_nodes",
-  "find_paths",
-  "analyze_patterns",
-  "execute_cypher",
+  {
+    id: "get_schema",
+    name: "get_schema",
+    description: "获取图谱的结构信息，包括节点类型、关系类型和属性定义",
+  },
+  {
+    id: "explore_nodes",
+    name: "explore_nodes",
+    description: "探索和浏览图谱中的节点，查看节点的详细信息和关联关系",
+  },
+  {
+    id: "search_nodes",
+    name: "search_nodes",
+    description: "根据关键词或属性搜索图谱中的节点",
+  },
+  {
+    id: "find_paths",
+    name: "find_paths",
+    description: "查找两个节点之间的路径，分析节点间的连接关系",
+  },
+  {
+    id: "analyze_patterns",
+    name: "analyze_patterns",
+    description: "分析图谱中的模式，识别常见的图结构和关系模式",
+  },
+  {
+    id: "execute_cypher",
+    name: "execute_cypher",
+    description: "执行自定义的 Cypher 查询语句，进行复杂的图谱查询和分析",
+  },
 ];
 
 const FLOW_MODELS = [
@@ -51,7 +75,7 @@ export default function CreateFlowPage() {
   const [name, setName] = useState("");
   const [graphSourceId, setGraphSourceId] = useState("default");
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [enabledTools, setEnabledTools] = useState<string[]>(() => [...FLOW_TOOLS]);
+  const [enabledTools, setEnabledTools] = useState<string[]>(() => FLOW_TOOLS.map(t => t.id));
   const [modelId, setModelId] = useState("claude-sonnet-4-20250514");
   const [draftFlow, setDraftFlow] = useState<Flow | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -78,7 +102,7 @@ export default function CreateFlowPage() {
     name: name || "未命名流程",
     graph_source_id: graphSourceId,
     system_prompt: systemPrompt.trim() || undefined,
-    enabled_tools: enabledTools,
+    enabled_tools: enabledTools, // 已经是字符串数组
     model_id: modelId,
   };
 
@@ -118,9 +142,6 @@ export default function CreateFlowPage() {
       minH="100vh"
       bg="#0a0e17"
       color="gray.100"
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
       py={12}
       px={4}
     >
@@ -162,7 +183,7 @@ export default function CreateFlowPage() {
       )}
 
       {/* 居中容器 */}
-      <Box w="100%" maxW="800px">
+      <Box w="100%" maxW="800px" mx="auto">
         <Heading size="xl" mb={12} textAlign="center" fontWeight="600" color="gray.50">
           创建洞察
         </Heading>
@@ -358,7 +379,10 @@ export default function CreateFlowPage() {
           borderRadius="2xl"
           boxShadow="0 8px 32px rgba(0, 0, 0, 0.3)"
           w="100%"
-          overflow="visible"
+          display="flex"
+          flexDirection="column"
+          maxH="calc(100vh - 250px)"
+          overflowY="auto"
         >
           {/* Step 1: 选择图谱数据 */}
           {step === 1 && (
@@ -521,61 +545,113 @@ export default function CreateFlowPage() {
 
           {/* Step 3: 配置 Tools */}
           {step === 3 && (
-            <VStack align="stretch" gap={4}>
-              <Box>
+            <VStack align="stretch" gap={4} flex={1} minH={0}>
+              <Box flex={1} display="flex" flexDirection="column" minH={0}>
                 <Text fontSize="sm" color="gray.400" mb={2} fontWeight="500">
                   启用的工具
                 </Text>
                 <Text fontSize="xs" color="gray.500" mb={4}>
                   勾选该流程中 AI 可调用的图谱工具。
                 </Text>
-                <VStack align="stretch" gap={3}>
-                  {FLOW_TOOLS.map((tool) => (
-                    <Box
-                      key={tool}
-                      p={3}
-                      borderRadius="lg"
-                      bg="rgba(255, 255, 255, 0.03)"
-                      borderWidth="1px"
-                      borderColor={
-                        enabledTools.includes(tool)
-                          ? "rgba(59, 130, 246, 0.4)"
-                          : "rgba(255, 255, 255, 0.1)"
-                      }
-                      cursor="pointer"
-                      onClick={() => handleToggleTool(tool)}
-                      transition="all 0.2s ease"
-                      _hover={{
-                        bg: "rgba(255, 255, 255, 0.05)",
-                        borderColor: "rgba(59, 130, 246, 0.5)",
-                      }}
+                <Box
+                  flex={1}
+                  overflowY="auto"
+                  pr={2}
+                  maxH="400px"
+                  css={{
+                    "&::-webkit-scrollbar": {
+                      width: "6px",
+                    },
+                    "&::-webkit-scrollbar-track": {
+                      background: "rgba(255, 255, 255, 0.05)",
+                      borderRadius: "3px",
+                    },
+                    "&::-webkit-scrollbar-thumb": {
+                      background: "rgba(255, 255, 255, 0.2)",
+                      borderRadius: "3px",
+                    },
+                    "&::-webkit-scrollbar-thumb:hover": {
+                      background: "rgba(255, 255, 255, 0.3)",
+                    },
+                  }}
+                >
+                  <VStack align="stretch" gap={3} w="100%">
+                    {FLOW_TOOLS.map((tool) => (
+                    <Checkbox.Root
+                      key={tool.id}
+                      checked={enabledTools.includes(tool.id)}
+                      onCheckedChange={() => handleToggleTool(tool.id)}
+                      w="100%"
                     >
-                      <Checkbox.Root
-                        checked={enabledTools.includes(tool)}
-                        onCheckedChange={() => handleToggleTool(tool)}
+                      <Checkbox.HiddenInput />
+                      <Box
+                        p={4}
+                        borderRadius="lg"
+                        bg="rgba(255, 255, 255, 0.03)"
+                        borderWidth="1px"
+                        borderColor={
+                          enabledTools.includes(tool.id)
+                            ? "rgba(59, 130, 246, 0.4)"
+                            : "rgba(255, 255, 255, 0.1)"
+                        }
+                        cursor="pointer"
+                        transition="all 0.2s ease"
+                        h="85px"
+                        w="100%"
+                        display="flex"
+                        flexDirection="column"
+                        justifyContent="flex-start"
+                        overflow="hidden"
+                        _hover={{
+                          bg: "rgba(255, 255, 255, 0.05)",
+                          borderColor: "rgba(59, 130, 246, 0.5)",
+                        }}
                       >
-                        <Checkbox.HiddenInput />
-                        <Flex align="center" gap={3}>
+                        <Flex align="flex-start" gap={3} w="100%" h="100%">
                           <Checkbox.Control
-                            bg={enabledTools.includes(tool) ? "blue.500" : "transparent"}
-                            borderColor={enabledTools.includes(tool) ? "blue.500" : "gray.600"}
+                            mt={0.5}
+                            bg={enabledTools.includes(tool.id) ? "blue.500" : "transparent"}
+                            borderColor={enabledTools.includes(tool.id) ? "blue.500" : "gray.600"}
                             _checked={{
                               bg: "blue.500",
                               borderColor: "blue.500",
                             }}
+                            flexShrink={0}
                           />
-                          <Checkbox.Label
-                            color={enabledTools.includes(tool) ? "gray.50" : "gray.400"}
-                            fontWeight={enabledTools.includes(tool) ? "500" : "400"}
-                            cursor="pointer"
-                          >
-                            {tool}
-                          </Checkbox.Label>
+                          <Box flex={1} display="flex" flexDirection="column" h="100%">
+                            <Checkbox.Label
+                              color={enabledTools.includes(tool.id) ? "gray.50" : "gray.400"}
+                              fontWeight={enabledTools.includes(tool.id) ? "500" : "400"}
+                              cursor="pointer"
+                              fontSize="sm"
+                              mb={1}
+                              display="block"
+                              flexShrink={0}
+                            >
+                              {tool.name}
+                            </Checkbox.Label>
+                            <Text
+                              fontSize="xs"
+                              color="gray.500"
+                              lineHeight="1.4"
+                              mt={0.5}
+                              flex={1}
+                              overflow="hidden"
+                              css={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                              }}
+                            >
+                              {tool.description}
+                            </Text>
+                          </Box>
                         </Flex>
-                      </Checkbox.Root>
-                    </Box>
-                  ))}
-                </VStack>
+                      </Box>
+                    </Checkbox.Root>
+                    ))}
+                  </VStack>
+                </Box>
               </Box>
             </VStack>
           )}
@@ -627,11 +703,12 @@ export default function CreateFlowPage() {
 
           {/* 上一步 / 下一步 */}
           <Box
-            mt={10}
+            mt="auto"
             pt={6}
             borderTopWidth="1px"
             borderColor="rgba(255, 255, 255, 0.1)"
             w="100%"
+            flexShrink={0}
           >
             <Flex
               justify={step === 1 ? "flex-end" : "space-between"}
