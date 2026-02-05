@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { Suspense, useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Box,
@@ -50,7 +50,7 @@ type ContextGraphViewRef = { zoomIn: () => void; zoomOut: () => void };
 
 const DRAWER_WIDTH = 380;
 
-export default function ViewFlowPage() {
+function ViewFlowContent() {
   const searchParams = useSearchParams();
   const uuid = searchParams.get("uuid");
 
@@ -343,5 +343,29 @@ export default function ViewFlowPage() {
         flowId={flow.id}
       />
     </Box>
+  );
+}
+
+export default function ViewFlowPage() {
+  return (
+    <Suspense
+      fallback={
+        <Box
+          h="100vh"
+          w="100vw"
+          bg="#0a0e17"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          flexDirection="column"
+          gap={4}
+        >
+          <Spinner size="xl" color="blue.400" />
+          <Text color="gray.400">加载页面…</Text>
+        </Box>
+      }
+    >
+      <ViewFlowContent />
+    </Suspense>
   );
 }

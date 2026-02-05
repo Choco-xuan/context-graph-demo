@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# 确保 public 目录存在（仓库为空时 COPY 不会失败）
+RUN mkdir -p public
+
 # 构建时传入的 API 地址（浏览器访问后端用的 URL，部署时按需覆盖）
 ARG NEXT_PUBLIC_API_URL=http://localhost:7000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
