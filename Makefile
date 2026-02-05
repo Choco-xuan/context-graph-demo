@@ -59,10 +59,10 @@ dev:
 	@make dev-frontend
 
 dev-backend:
-	@echo "Starting backend on http://localhost:8000..."
+	@echo "Starting backend on http://localhost:7000..."
 	cd backend && source .venv/bin/activate && \
 		export $$(grep -v '^#' ../.env | xargs) && \
-		uvicorn app.main:app --reload --port 8000
+		uvicorn app.main:app --reload --port 7000
 
 dev-frontend:
 	@echo "Starting frontend on http://localhost:3001..."
@@ -123,10 +123,10 @@ format:
 # =============================================================================
 
 health:
-	@curl -s http://localhost:8000/health | python3 -m json.tool
+	@curl -s http://localhost:7000/health | python3 -m json.tool
 
 stats:
-	@curl -s http://localhost:8000/api/graph/statistics | python3 -m json.tool
+	@curl -s http://localhost:7000/api/graph/statistics | python3 -m json.tool
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

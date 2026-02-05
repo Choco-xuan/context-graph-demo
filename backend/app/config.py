@@ -107,7 +107,7 @@ class AppConfig:
 
     # Server settings
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 7000
     debug: bool = False
     # CORS 允许的源，用于 iframe 嵌入等场景
     cors_origins: list[str] = ()
@@ -127,7 +127,7 @@ class AppConfig:
             mysql=MySQLConfig.from_env(),
             fastrp_dimensions=int(os.getenv("FASTRP_DIMENSIONS", "128")),
             host=os.getenv("HOST", "0.0.0.0"),
-            port=int(os.getenv("PORT", "8000")),
+            port=int(os.getenv("PORT", "7000")),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             cors_origins=cors_origins,
         )
