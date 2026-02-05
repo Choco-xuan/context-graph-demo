@@ -11,10 +11,6 @@ RUN pip install --no-cache-dir --timeout 300 -e . \
     --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
     --trusted-host pypi.tuna.tsinghua.edu.cn
 
-# 非 root 用户运行
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-
 EXPOSE 7000
 
 ENV HOST=0.0.0.0
