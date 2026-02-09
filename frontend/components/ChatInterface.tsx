@@ -18,7 +18,6 @@ import ReactMarkdown from "react-markdown";
 import {
   streamChatMessage,
   getGraphData,
-  getChatSuggestions,
   type ChatMessage,
   type StreamEvent,
   type Decision,
@@ -129,23 +128,13 @@ export function ChatInterface({
   const [messages, setMessages] = useState<MessageWithGraph[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([
-    "当前图谱中有哪些核心节点？",
-    "图中各类型节点和关系的分布如何？",
-    "图中最大深度的节点有哪些？",
-  ]);
+  const suggestedQuestions = [
+    "请提取图谱中的主要实体和关系",
+    "图谱中有什么常见的关系模式",
+    "请总结图谱中的主要关系集群",
+  ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // 先展示默认候选问题，后台静默获取 AI 推荐，成功后替换
-  useEffect(() => {
-    if (messages.length > 0) return;
-    getChatSuggestions()
-      .then((qs) => {
-        if (qs.length >= 3) setSuggestedQuestions(qs);
-      })
-      .catch(() => {});
-  }, [messages.length]);
 
   // Scroll to bottom only when user sends a new message (not during streaming updates)
   const scrollToBottom = useCallback(() => {

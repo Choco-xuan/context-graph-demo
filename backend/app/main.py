@@ -176,26 +176,6 @@ async def health_check():
 # CHAT / AGENT ENDPOINTS
 # ============================================
 
-from .suggestions_service import generate_suggested_questions
-
-
-@app.get("/api/chat/suggestions")
-async def get_chat_suggestions():
-    """Get AI-generated suggested questions based on current graph schema."""
-    try:
-        questions = await generate_suggested_questions()
-        return {"suggestions": questions}
-    except Exception as e:
-        logger.warning(f"Failed to generate suggestions: {e}")
-        return {
-            "suggestions": [
-                "当前图谱中有哪些核心节点？",
-                "图中各类型节点和关系的分布如何？",
-                "图中最大深度的节点有哪些？",
-            ]
-        }
-
-
 def _resolve_flow_overrides(
     flow_id: Optional[str],
     flow_preview_config: Optional[FlowPreviewConfig],

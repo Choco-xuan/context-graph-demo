@@ -148,11 +148,6 @@ export async function deleteFlow(id: string): Promise<void> {
   await api.delete(`/api/flows/${id}`);
 }
 
-export async function getChatSuggestions(): Promise<string[]> {
-  const response = await api.get<{ suggestions: string[] }>("/api/chat/suggestions");
-  return response.data.suggestions || [];
-}
-
 export interface SimilarDecision {
   decision: Decision;
   similarity_score: number;

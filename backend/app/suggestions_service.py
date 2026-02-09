@@ -16,9 +16,9 @@ from .schema_service import SchemaService
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUESTIONS = [
-    "当前图谱中有哪些核心节点？",
-    "图中各类型节点和关系的分布如何？",
-    "图中最大深度的节点有哪些？",
+    "请提取图谱中的主要实体和关系",
+    "图谱中有什么常见的关系模式",
+    "请总结图谱中的主要关系集群",
 ]
 
 
